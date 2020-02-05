@@ -6,6 +6,11 @@ mod ffi {
         x: UniquePtr<ThingC>,
     }
 
+    struct JsonBlob {
+        json: UniquePtr<CxxString>,
+        blob: UniquePtr<Vector<u8>>,
+    }
+
     extern "C" {
         include!("demo-cxx/demo.h");
 
@@ -13,6 +18,7 @@ mod ffi {
         fn make_demo(appname: &str) -> UniquePtr<ThingC>;
         fn get_name(thing: &ThingC) -> &CxxString;
         fn do_thing(state: SharedThing) -> UniquePtr<Vector<u8>>;
+        fn get_jb() -> JsonBlob;
     }
 
     extern "Rust" {
@@ -40,5 +46,11 @@ fn main() {
     println!("vec length = {}", vec.as_ref().unwrap().len());
     for (i, v) in vec.as_ref().unwrap().into_iter().enumerate() {
         println!("vec[{}] = {}", i, v);
+    }
+
+    let jb = ffi::get_jb();
+    println!("json: {}", jb.json.as_ref().unwrap());
+    for (i, v) in jb.blob.as_ref().unwrap().into_iter().enumerate() {
+        println!("jb.blob[{}] = {}", i, v);
     }
 }
