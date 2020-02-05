@@ -351,12 +351,14 @@ mod opaque;
 mod paths;
 mod rust_str;
 mod rust_string;
+mod rust_vec;
 mod syntax;
 mod unique_ptr;
 mod unwind;
 mod vector;
 
 pub use crate::cxx_string::CxxString;
+pub use crate::rust_vec::RustVec;
 pub use crate::unique_ptr::UniquePtr;
 pub use crate::vector::Vector;
 pub use crate::vector::VectorIntoIterator;

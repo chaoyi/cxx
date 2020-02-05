@@ -1,6 +1,7 @@
 #include "../include/cxxbridge.h"
 #include <cstring>
 #include <memory>
+#include <vector>
 #include <stdexcept>
 
 namespace cxxbridge = cxxbridge01;

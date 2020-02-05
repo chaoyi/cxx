@@ -58,6 +58,25 @@ private:
   Repr repr;
 };
 
+template <typename T>
+class RustVec final {
+public:
+  void to_vector(const std::vector<T> &vector) const noexcept;
+  size_t length() const noexcept { return len; };
+  size_t size() const noexcept { return len; };
+
+private:
+  RustVec() noexcept;
+  RustVec(const RustVec &other) noexcept;
+  RustVec &operator=(RustVec other) noexcept;
+  void drop() noexcept;
+  
+  // Repr
+  const T *ptr;
+  size_t len;
+  size_t capacity;
+};
+
 #ifndef CXXBRIDGE01_RUST_BOX
 #define CXXBRIDGE01_RUST_BOX
 template <typename T> class RustBox final {

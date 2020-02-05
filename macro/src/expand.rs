@@ -1,10 +1,11 @@
 use crate::namespace::Namespace;
 use crate::syntax::atom::Atom;
 use crate::syntax::mangled::ToMangled;
+use crate::syntax::typename::ToTypename;
 use crate::syntax::{self, check, Api, ExternFn, ExternType, Struct, Type, Types, Var};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
-use syn::{Error, ItemMod, Result, Token};
+use syn::{spanned::Spanned, Error, ItemMod, Result, Token};
 
 pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
     let ident = &ffi.ident;
@@ -53,6 +54,12 @@ pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
             if let Type::Ident(ident) = &ty.inner {
                 if Atom::from(ident).is_none() {
                     hidden.extend(expand_rust_box(namespace, ident));
+                }
+            }
+        } else if let Type::RustVec(ty) = ty {
+            if let Type::Ident(ident) = &ty.inner {
+                if Atom::from(ident).is_some() {
+                    hidden.extend(expand_rust_vec(namespace, &ty.inner));
                 }
             }
         } else if let Type::UniquePtr(ptr) = ty {
@@ -358,6 +365,31 @@ fn expand_rust_box(namespace: &Namespace, ident: &Ident) -> TokenStream {
     }
 }
 
+fn expand_rust_vec(namespace: &Namespace, ty: &Type) -> TokenStream {
+    let inner = ty;
+    let mangled = ty.to_mangled(&namespace.segments) + "$";
+    let link_prefix = format!("cxxbridge01$rust_vec${}", mangled);
+    let link_drop = format!("{}drop", link_prefix);
+    let link_to_vector = format!("{}to_vector", link_prefix);
+
+    let local_prefix = format_ident!("{}__vec_", inner.to_typename(&namespace.segments));
+    let local_drop = format_ident!("{}drop", local_prefix);
+    let local_to_vector = format_ident!("{}to_vector", local_prefix);
+
+    let span = ty.span();
+    quote_spanned! {span=>
+        #[doc(hidden)]
+        #[export_name = #link_drop]
+        unsafe extern "C" fn #local_drop(this: *mut ::cxx::RustVec<#inner>) {
+            std::ptr::drop_in_place(this);
+        }
+        #[export_name = #link_to_vector]
+        unsafe extern "C" fn #local_to_vector(this: *mut ::cxx::RustVec<#inner>, vector: *mut cxx::Vector<#inner>) {
+            this.as_ref().unwrap().to_vector(vector.as_mut().unwrap());
+        }
+    }
+}
+
 fn expand_unique_ptr(namespace: &Namespace, ty: &Type) -> TokenStream {
     let inner = ty;
     let mangled = ty.to_mangled(&namespace.segments) + "$";
@@ -469,7 +501,7 @@ fn indirect_return(ret: &Option<Type>, types: &Types) -> bool {
 fn expand_extern_type(ty: &Type) -> TokenStream {
     match ty {
         Type::Ident(ident) if ident == "String" => quote!(::cxx::private::RustString),
-        Type::RustBox(ty) | Type::UniquePtr(ty) | Type::Vector(ty) => {
+        Type::RustBox(ty) | Type::UniquePtr(ty) | Type::Vector(ty) | Type::RustVec(ty) => {
             let inner = &ty.inner;
             quote!(*mut #inner)
         }

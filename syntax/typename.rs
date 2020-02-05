@@ -25,7 +25,7 @@ impl ToTypename for Type {
                 inner
             }
             Type::RustBox(ptr) => format!("rust_box<{}>", ptr.inner.to_typename(namespace)),
-
+            Type::RustVec(ptr) => format!("rust_vec<{}>", ptr.inner.to_typename(namespace)),
             Type::UniquePtr(ptr) => {
                 format!("std::unique_ptr<{}>", ptr.inner.to_typename(namespace))
             }

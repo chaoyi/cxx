@@ -5,6 +5,9 @@ pub trait VecOps<T> {
     fn vector_length(v: &Vector<T>) -> usize
     where
         Self: Sized;
+    fn push_back(v: &Vector<T>, item: &T)
+    where
+        Self: Sized;
 }
 
 /// Binding to C++ `std::vector`.
@@ -24,10 +27,6 @@ pub struct Vector<T> {
 
 impl<T: VecOps<T>> Vector<T> {
     /// Returns the length of the vector in bytes.
-    ///
-    /// Matches the behavior of C++ [std::vector::size][size].
-    ///
-    /// [size]: https://en.cppreference.com/w/cpp/vector/basic_vector/size
     pub fn len(&self) -> usize {
         T::vector_length(self)
     }
@@ -47,6 +46,10 @@ impl<T: VecOps<T>> Vector<T> {
         } else {
             None
         }
+    }
+
+    pub fn push_back(&mut self, item: &T) {
+        T::push_back(self, item);
     }
 }
 
@@ -90,6 +93,15 @@ impl VecOps<u8> for u8 {
                 fn __vector_length(_: &Vector<u8>) -> usize;
             }
             __vector_length(v)
+        }
+    }
+    fn push_back(v: &Vector<u8>, item: &u8) {
+        unsafe {
+            extern "C" {
+                #[link_name = "cxxbridge01$std$vector$u8$push_back"]
+                fn __push_back(_: &Vector<u8>, _: &u8) -> usize;
+            }
+            __push_back(v, item);
         }
     }
 }

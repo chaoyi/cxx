@@ -24,8 +24,15 @@ std::unique_ptr<std::vector<uint8_t>> do_thing(SharedThing state) {
   return vec;
 }
 
-JsonBlob get_jb() {
+JsonBlob get_jb(const cxxbridge::RustVec<uint8_t>& vec) {
   JsonBlob retval;
+
+  std::cout << "incoming vec length is " << vec.size() << "\n";
+  auto vec_copy = std::vector<uint8_t>();
+  vec_copy.reserve(vec.length());
+  vec.to_vector(vec_copy);
+  std::cout << "vec_copy length is " << vec_copy.size() << "\n";
+  std::cout << "vec_copy[0] is " << (int)vec_copy[0] << "\n";
 
   auto blob = std::unique_ptr<std::vector<uint8_t>>(new std::vector<uint8_t>());
   for (uint8_t i = 0; i < 10; i++) {

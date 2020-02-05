@@ -28,6 +28,17 @@ pub(crate) fn typecheck(apis: &[Api], types: &Types) -> Result<()> {
                 }
                 errors.push(unsupported_box_target(ptr));
             }
+            Type::RustVec(ptr) => {
+                if let Type::Ident(ident) = &ptr.inner {
+                    if types.cxx.contains(ident) {
+                        errors.push(unsupported_cxx_type_in_vec(ptr));
+                    }
+                    if Atom::from(ident).is_some() {
+                        continue;
+                    }
+                }
+                errors.push(unsupported_vec_target(ptr));
+            }
             Type::UniquePtr(ptr) => {
                 if let Type::Ident(ident) = &ptr.inner {
                     if types.rust.contains(ident) {
@@ -172,6 +183,7 @@ fn describe(ty: &Type, types: &Types) -> String {
             }
         }
         Type::RustBox(_) => "Box".to_owned(),
+        Type::RustVec(_) => "Vec".to_owned(),
         Type::UniquePtr(_) => "unique_ptr".to_owned(),
         Type::Ref(_) => "reference".to_owned(),
         Type::Str(_) => "&str".to_owned(),
@@ -189,6 +201,14 @@ fn unsupported_cxx_type_in_box(unique_ptr: &Ty1) -> Error {
 
 fn unsupported_box_target(unique_ptr: &Ty1) -> Error {
     Error::new_spanned(unique_ptr, "unsupported target type of Box")
+}
+
+fn unsupported_cxx_type_in_vec(unique_ptr: &Ty1) -> Error {
+    Error::new_spanned(unique_ptr, error::VEC_CXX_TYPE.msg)
+}
+
+fn unsupported_vec_target(unique_ptr: &Ty1) -> Error {
+    Error::new_spanned(unique_ptr, "unsupported target type of Vec")
 }
 
 fn unsupported_rust_type_in_unique_ptr(unique_ptr: &Ty1) -> Error {

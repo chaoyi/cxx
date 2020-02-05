@@ -7,12 +7,12 @@ mod doc;
 pub mod error;
 pub mod ident;
 mod impls;
+pub mod mangled;
 mod parse;
 pub mod set;
 mod tokens;
-pub mod types;
 pub mod typename;
-pub mod mangled;
+pub mod types;
 
 use proc_macro2::Ident;
 use syn::{LitStr, Token};
@@ -69,6 +69,7 @@ pub struct Receiver {
 pub enum Type {
     Ident(Ident),
     RustBox(Box<Ty1>),
+    RustVec(Box<Ty1>),
     UniquePtr(Box<Ty1>),
     Ref(Box<Ref>),
     Str(Box<Ref>),
