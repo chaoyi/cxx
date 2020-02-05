@@ -13,7 +13,7 @@ impl ToTokens for Type {
                 }
                 ident.to_tokens(tokens);
             }
-            Type::RustBox(ty) | Type::UniquePtr(ty) => ty.to_tokens(tokens),
+            Type::RustBox(ty) | Type::UniquePtr(ty) | Type::Vector(ty) => ty.to_tokens(tokens),
             Type::Ref(r) | Type::Str(r) => r.to_tokens(tokens),
         }
     }
@@ -29,7 +29,7 @@ impl ToTokens for Var {
 
 impl ToTokens for Ty1 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        if self.name == "UniquePtr" {
+        if self.name == "UniquePtr" || self.name == "Vector" {
             let span = self.name.span();
             tokens.extend(quote_spanned!(span=> ::cxx::));
         }

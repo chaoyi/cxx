@@ -37,4 +37,23 @@ impl Atom {
             _ => None,
         }
     }
+
+    pub fn to_cxx(&self) -> &'static str {
+        use self::Atom::*;
+        match self {
+            Bool => "bool",
+            U8 => "uint8_t",
+            U16 => "uint16_t",
+            U32 => "uint32_t",
+            U64 => "uint64_t",
+            Usize => "size_t",
+            I8 => "int8_t",
+            I16 => "int16_t",
+            I32 => "int32_t",
+            I64 => "int64_t",
+            Isize => "ssize_t",
+            CxxString => "std::string",
+            RustString => "cxxbridge::RustString",
+        }
+    }
 }

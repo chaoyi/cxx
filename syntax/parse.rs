@@ -235,6 +235,16 @@ fn parse_type(ty: &RustType) -> Result<Type> {
                                     rangle: generic.gt_token,
                                 })));
                             }
+                        } else if ident == "Vector" && generic.args.len() == 1 {
+                            if let GenericArgument::Type(arg) = &generic.args[0] {
+                                let inner = parse_type(arg)?;
+                                return Ok(Type::Vector(Box::new(Ty1 {
+                                    name: ident,
+                                    langle: generic.lt_token,
+                                    inner,
+                                    rangle: generic.gt_token,
+                                })));
+                            }
                         } else if ident == "Box" && generic.args.len() == 1 {
                             if let GenericArgument::Type(arg) = &generic.args[0] {
                                 let inner = parse_type(arg)?;
@@ -257,7 +267,7 @@ fn parse_type(ty: &RustType) -> Result<Type> {
 }
 
 fn check_reserved_name(ident: &Ident) -> Result<()> {
-    if ident == "Box" || ident == "UniquePtr" || Atom::from(ident).is_some() {
+    if ident == "Box" || ident == "UniquePtr" || ident == "Vector" || Atom::from(ident).is_some() {
         Err(Error::new(ident.span(), "reserved name"))
     } else {
         Ok(())

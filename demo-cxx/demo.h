@@ -18,7 +18,7 @@ struct SharedThing;
 
 std::unique_ptr<ThingC> make_demo(cxxbridge::RustStr appname);
 const std::string &get_name(const ThingC &thing);
-void do_thing(SharedThing state);
+std::unique_ptr<std::vector<uint8_t>> do_thing(SharedThing state);
 
 } // namespace rust
 } // namespace org

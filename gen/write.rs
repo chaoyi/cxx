@@ -1,6 +1,8 @@
 use crate::gen::include;
 use crate::gen::out::OutFile;
 use crate::syntax::atom::Atom::{self, *};
+use crate::syntax::mangled::ToMangled;
+use crate::syntax::typename::ToTypename;
 use crate::syntax::{Api, ExternFn, Struct, Type, Types, Var};
 use proc_macro2::Ident;
 
@@ -91,6 +93,7 @@ fn write_includes(out: &mut OutFile, types: &Types) {
     let mut has_int = false;
     let mut has_unique_ptr = false;
     let mut has_string = false;
+    let mut has_vector = false;
 
     for ty in types {
         match ty {
@@ -101,6 +104,7 @@ fn write_includes(out: &mut OutFile, types: &Types) {
                 Some(Bool) | Some(RustString) | None => {}
             },
             Type::UniquePtr(_) => has_unique_ptr = true,
+            Type::Vector(_) => has_vector = true,
             _ => {}
         }
     }
@@ -113,6 +117,9 @@ fn write_includes(out: &mut OutFile, types: &Types) {
     }
     if has_string {
         writeln!(out, "#include <string>");
+    }
+    if has_vector {
+        writeln!(out, "#include <vector>");
     }
 }
 
@@ -238,6 +245,10 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     match &efn.ret {
         Some(Type::RustBox(_)) => write!(out, ".into_raw()"),
         Some(Type::UniquePtr(_)) => write!(out, ".release()"),
+        Some(Type::Vector(_)) => write!(
+            out,
+            " /* Use RVO to convert to r-value and move construct */"
+        ),
         _ => {}
     }
     if indirect_return {
@@ -373,7 +384,7 @@ fn write_extern_return_type(out: &mut OutFile, ty: &Option<Type>, types: &Types)
 
 fn write_extern_arg(out: &mut OutFile, arg: &Var, types: &Types) {
     match &arg.ty {
-        Type::RustBox(ty) | Type::UniquePtr(ty) => {
+        Type::RustBox(ty) | Type::UniquePtr(ty) | Type::Vector(ty) => {
             write_type_space(out, &ty.inner);
             write!(out, "*");
         }
@@ -389,19 +400,7 @@ fn write_extern_arg(out: &mut OutFile, arg: &Var, types: &Types) {
 fn write_type(out: &mut OutFile, ty: &Type) {
     match ty {
         Type::Ident(ident) => match Atom::from(ident) {
-            Some(Bool) => write!(out, "bool"),
-            Some(U8) => write!(out, "uint8_t"),
-            Some(U16) => write!(out, "uint16_t"),
-            Some(U32) => write!(out, "uint32_t"),
-            Some(U64) => write!(out, "uint64_t"),
-            Some(Usize) => write!(out, "size_t"),
-            Some(I8) => write!(out, "int8_t"),
-            Some(I16) => write!(out, "int16_t"),
-            Some(I32) => write!(out, "int32_t"),
-            Some(I64) => write!(out, "int64_t"),
-            Some(Isize) => write!(out, "ssize_t"),
-            Some(CxxString) => write!(out, "std::string"),
-            Some(RustString) => write!(out, "cxxbridge::RustString"),
+            Some(a) => write!(out, "{}", a.to_cxx()),
             None => write!(out, "{}", ident),
         },
         Type::RustBox(ty) => {
@@ -412,6 +411,11 @@ fn write_type(out: &mut OutFile, ty: &Type) {
         Type::UniquePtr(ptr) => {
             write!(out, "std::unique_ptr<");
             write_type(out, &ptr.inner);
+            write!(out, ">");
+        }
+        Type::Vector(ty) => {
+            write!(out, "std::vector<");
+            write_type(out, &ty.inner);
             write!(out, ">");
         }
         Type::Ref(r) => {
@@ -430,7 +434,9 @@ fn write_type(out: &mut OutFile, ty: &Type) {
 fn write_type_space(out: &mut OutFile, ty: &Type) {
     write_type(out, ty);
     match ty {
-        Type::Ident(_) | Type::RustBox(_) | Type::UniquePtr(_) | Type::Str(_) => write!(out, " "),
+        Type::Ident(_) | Type::RustBox(_) | Type::UniquePtr(_) | Type::Str(_) | Type::Vector(_) => {
+            write!(out, " ")
+        }
         Type::Ref(_) => {}
     }
 }
@@ -438,6 +444,14 @@ fn write_type_space(out: &mut OutFile, ty: &Type) {
 fn write_generic_instantiations(out: &mut OutFile, types: &Types) {
     fn allow_unique_ptr(ident: &Ident) -> bool {
         Atom::from(ident).is_none()
+    }
+
+    fn allow_vector(ident: &Ident) -> bool {
+        if let Some(Atom::U8) = Atom::from(ident) {
+            true
+        } else {
+            false
+        }
     }
 
     out.begin_block("extern \"C\"");
@@ -451,7 +465,17 @@ fn write_generic_instantiations(out: &mut OutFile, types: &Types) {
             if let Type::Ident(inner) = &ptr.inner {
                 if allow_unique_ptr(inner) {
                     out.next_section();
-                    write_unique_ptr(out, inner);
+                    write_unique_ptr(out, &ptr.inner);
+                }
+            } else if let Type::Vector(_) = &ptr.inner {
+                out.next_section();
+                write_unique_ptr(out, &ptr.inner);
+            }
+        } else if let Type::Vector(ptr) = ty {
+            if let Type::Ident(inner) = &ptr.inner {
+                if allow_vector(inner) {
+                    out.next_section();
+                    write_vector(out, inner);
                 }
             }
         }
@@ -575,14 +599,9 @@ fn write_rust_box_impl(out: &mut OutFile, ident: &Ident) {
     writeln!(out, "}}");
 }
 
-fn write_unique_ptr(out: &mut OutFile, ident: &Ident) {
-    let mut inner = String::new();
-    for name in &out.namespace {
-        inner += name;
-        inner += "::";
-    }
-    inner += &ident.to_string();
-    let instance = inner.replace("::", "$");
+fn write_unique_ptr(out: &mut OutFile, ty: &Type) {
+    let inner = ty.to_typename(&out.namespace);
+    let instance = ty.to_mangled(&out.namespace);
 
     writeln!(out, "#ifndef CXXBRIDGE01_UNIQUE_PTR_{}", instance);
     writeln!(out, "#define CXXBRIDGE01_UNIQUE_PTR_{}", instance);
@@ -643,4 +662,43 @@ fn write_unique_ptr(out: &mut OutFile, ident: &Ident) {
     writeln!(out, "  ptr->~unique_ptr();");
     writeln!(out, "}}");
     writeln!(out, "#endif // CXXBRIDGE01_UNIQUE_PTR_{}", instance);
+}
+
+fn write_vector(out: &mut OutFile, ident: &Ident) {
+    let mut inner = String::new();
+    // Do not apply namespace to built-in type
+    let is_user_type = Atom::from(ident).is_none();
+    if is_user_type {
+        for name in &out.namespace {
+            inner += name;
+            inner += "::";
+        }
+    }
+    let mut instance = inner.clone();
+    if let Some(ti) = Atom::from(ident) {
+        inner += ti.to_cxx();
+    } else {
+        inner += &ident.to_string();
+    };
+    instance += &ident.to_string();
+    let instance = instance.replace("::", "$");
+
+    writeln!(out, "#ifndef CXXBRIDGE01_vector_{}", instance);
+    writeln!(out, "#define CXXBRIDGE01_vector_{}", instance);
+    writeln!(
+        out,
+        "size_t cxxbridge01$std$vector${}$length(const std::vector<{}> &s) noexcept {{",
+        instance, inner,
+    );
+    writeln!(out, "  return s.size();");
+    writeln!(out, "}}");
+
+    writeln!(
+        out,
+        "const uint8_t *cxxbridge01$std$vector${}$get_unchecked(const std::vector<{}> &s, size_t pos) noexcept {{",
+        instance, inner,
+    );
+    writeln!(out, "  return &s[pos];");
+    writeln!(out, "}}");
+    writeln!(out, "#endif // CXXBRIDGE01_vector_{}", instance);
 }

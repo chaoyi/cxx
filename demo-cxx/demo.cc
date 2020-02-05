@@ -15,7 +15,15 @@ std::unique_ptr<ThingC> make_demo(cxxbridge::RustStr appname) {
 
 const std::string &get_name(const ThingC &thing) { return thing.appname; }
 
-void do_thing(SharedThing state) { print_r(*state.y); }
+std::unique_ptr<std::vector<uint8_t>> do_thing(SharedThing state) {
+  print_r(*state.y);
+  auto vec = std::unique_ptr<std::vector<uint8_t>>(new std::vector<uint8_t>());
+  for (uint8_t i=0; i<10; i++) {
+    vec->push_back(i*i);
+  }
+  return vec;
+}
+
 
 } // namespace rust
 } // namespace org

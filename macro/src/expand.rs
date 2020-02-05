@@ -1,5 +1,6 @@
 use crate::namespace::Namespace;
 use crate::syntax::atom::Atom;
+use crate::syntax::mangled::ToMangled;
 use crate::syntax::{self, check, Api, ExternFn, ExternType, Struct, Type, Types, Var};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
@@ -57,7 +58,15 @@ pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
         } else if let Type::UniquePtr(ptr) = ty {
             if let Type::Ident(ident) = &ptr.inner {
                 if Atom::from(ident).is_none() {
-                    expanded.extend(expand_unique_ptr(namespace, ident));
+                    expanded.extend(expand_unique_ptr(namespace, &ptr.inner));
+                }
+            } /* else if let Type::Vector(_) = &ptr.inner {
+                  expanded.extend(expand_unique_ptr(namespace, &ptr.inner));
+              }*/
+        } else if let Type::Vector(ptr) = ty {
+            if let Type::Ident(ident) = &ptr.inner {
+                if Atom::from(ident).is_some() {
+                    //expanded.extend(expand_vector(namespace, &ptr.inner));
                 }
             }
         }
@@ -349,8 +358,10 @@ fn expand_rust_box(namespace: &Namespace, ident: &Ident) -> TokenStream {
     }
 }
 
-fn expand_unique_ptr(namespace: &Namespace, ident: &Ident) -> TokenStream {
-    let prefix = format!("cxxbridge01$unique_ptr${}{}$", namespace, ident);
+fn expand_unique_ptr(namespace: &Namespace, ty: &Type) -> TokenStream {
+    let inner = ty;
+    let mangled = ty.to_mangled(&namespace.segments) + "$";
+    let prefix = format!("cxxbridge01$unique_ptr${}", mangled);
     let link_null = format!("{}null", prefix);
     let link_new = format!("{}new", prefix);
     let link_raw = format!("{}raw", prefix);
@@ -359,7 +370,7 @@ fn expand_unique_ptr(namespace: &Namespace, ident: &Ident) -> TokenStream {
     let link_drop = format!("{}drop", prefix);
 
     quote! {
-        unsafe impl ::cxx::private::UniquePtrTarget for #ident {
+        unsafe impl ::cxx::private::UniquePtrTarget for #inner {
             fn __null() -> *mut ::std::ffi::c_void {
                 extern "C" {
                     #[link_name = #link_null]
@@ -372,7 +383,7 @@ fn expand_unique_ptr(namespace: &Namespace, ident: &Ident) -> TokenStream {
             fn __new(mut value: Self) -> *mut ::std::ffi::c_void {
                 extern "C" {
                     #[link_name = #link_new]
-                    fn __new(this: *mut *mut ::std::ffi::c_void, value: *mut #ident);
+                    fn __new(this: *mut *mut ::std::ffi::c_void, value: *mut #inner);
                 }
                 let mut repr = ::std::ptr::null_mut::<::std::ffi::c_void>();
                 unsafe { __new(&mut repr, &mut value) }
@@ -381,7 +392,7 @@ fn expand_unique_ptr(namespace: &Namespace, ident: &Ident) -> TokenStream {
             unsafe fn __raw(raw: *mut Self) -> *mut ::std::ffi::c_void {
                 extern "C" {
                     #[link_name = #link_raw]
-                    fn __raw(this: *mut *mut ::std::ffi::c_void, raw: *mut #ident);
+                    fn __raw(this: *mut *mut ::std::ffi::c_void, raw: *mut #inner);
                 }
                 let mut repr = ::std::ptr::null_mut::<::std::ffi::c_void>();
                 __raw(&mut repr, raw);
@@ -390,14 +401,14 @@ fn expand_unique_ptr(namespace: &Namespace, ident: &Ident) -> TokenStream {
             unsafe fn __get(repr: *mut ::std::ffi::c_void) -> *const Self {
                 extern "C" {
                     #[link_name = #link_get]
-                    fn __get(this: *const *mut ::std::ffi::c_void) -> *const #ident;
+                    fn __get(this: *const *mut ::std::ffi::c_void) -> *const #inner;
                 }
                 __get(&repr)
             }
             unsafe fn __release(mut repr: *mut ::std::ffi::c_void) -> *mut Self {
                 extern "C" {
                     #[link_name = #link_release]
-                    fn __release(this: *mut *mut ::std::ffi::c_void) -> *mut #ident;
+                    fn __release(this: *mut *mut ::std::ffi::c_void) -> *mut #inner;
                 }
                 __release(&mut repr)
             }
@@ -407,6 +418,37 @@ fn expand_unique_ptr(namespace: &Namespace, ident: &Ident) -> TokenStream {
                     fn __drop(this: *mut *mut ::std::ffi::c_void);
                 }
                 __drop(&mut repr);
+            }
+        }
+    }
+}
+
+fn _expand_vector(namespace: &Namespace, ty: &Type) -> TokenStream {
+    let inner = ty;
+    let mangled = ty.to_mangled(&namespace.segments) + "$";
+    let prefix = format!("cxxbridge01$std$vector${}", mangled);
+    let link_length = format!("{}length", prefix);
+    let link_get_unchecked = format!("{}get_unchecked", prefix);
+
+    quote! {
+        impl cxx::VecOps<#inner> for #inner {
+            fn get_unchecked(v: &cxx::Vector<#inner>, pos: usize) -> &#inner {
+                extern "C" {
+                    #[link_name = #link_get_unchecked]
+                    fn __get_unchecked(_: &cxx::Vector<#inner>, _: usize) -> &#inner;
+                }
+                unsafe {
+                    __get_unchecked(v, pos)
+                }
+            }
+            fn vector_length(v: &cxx::Vector<#inner>) -> usize {
+                unsafe {
+                    extern "C" {
+                        #[link_name = #link_length]
+                        fn __vector_length(_: &cxx::Vector<#inner>) -> usize;
+                    }
+                    __vector_length(v)
+                }
             }
         }
     }
@@ -427,7 +469,7 @@ fn indirect_return(ret: &Option<Type>, types: &Types) -> bool {
 fn expand_extern_type(ty: &Type) -> TokenStream {
     match ty {
         Type::Ident(ident) if ident == "String" => quote!(::cxx::private::RustString),
-        Type::RustBox(ty) | Type::UniquePtr(ty) => {
+        Type::RustBox(ty) | Type::UniquePtr(ty) | Type::Vector(ty) => {
             let inner = &ty.inner;
             quote!(*mut #inner)
         }

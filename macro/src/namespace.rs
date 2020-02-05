@@ -8,7 +8,7 @@ mod kw {
 }
 
 pub struct Namespace {
-    segments: Vec<String>,
+    pub segments: Vec<String>,
 }
 
 impl Parse for Namespace {

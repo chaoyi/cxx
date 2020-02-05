@@ -37,8 +37,22 @@ pub(crate) fn typecheck(apis: &[Api], types: &Types) -> Result<()> {
                         None | Some(CxxString) => continue,
                         _ => {}
                     }
+                } else if let Type::Vector(_) = &ptr.inner {
+                    continue;
                 }
                 errors.push(unsupported_unique_ptr_target(ptr));
+            }
+            Type::Vector(tyi) => {
+                if let Type::Ident(ident) = &tyi.inner {
+                    if types.rust.contains(ident) {
+                        errors.push(unsupported_rust_type_in_vector(tyi));
+                    }
+                    match Atom::from(ident) {
+                        Some(U8) => continue, // Just u8 for now
+                        _ => {}
+                    }
+                }
+                errors.push(unsupported_vector_target(tyi));
             }
             _ => {}
         }
@@ -161,6 +175,7 @@ fn describe(ty: &Type, types: &Types) -> String {
         Type::UniquePtr(_) => "unique_ptr".to_owned(),
         Type::Ref(_) => "reference".to_owned(),
         Type::Str(_) => "&str".to_owned(),
+        Type::Vector(_) => "vector".to_owned(),
     }
 }
 
@@ -180,8 +195,19 @@ fn unsupported_rust_type_in_unique_ptr(unique_ptr: &Ty1) -> Error {
     Error::new_spanned(unique_ptr, "unique_ptr of a Rust type is not supported yet")
 }
 
+fn unsupported_rust_type_in_vector(vector: &Ty1) -> Error {
+    Error::new_spanned(vector, "vector of a Rust type is not supported yet")
+}
+
 fn unsupported_unique_ptr_target(unique_ptr: &Ty1) -> Error {
     Error::new_spanned(unique_ptr, "unsupported unique_ptr target type")
+}
+
+fn unsupported_vector_target(vector: &Ty1) -> Error {
+    Error::new_spanned(
+        vector,
+        "unsupported vector target type (only u8 supported for now)",
+    )
 }
 
 fn field_by_value(field: &Var, types: &Types) -> Error {

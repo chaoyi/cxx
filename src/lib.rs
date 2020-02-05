@@ -354,9 +354,12 @@ mod rust_string;
 mod syntax;
 mod unique_ptr;
 mod unwind;
+mod vector;
 
 pub use crate::cxx_string::CxxString;
 pub use crate::unique_ptr::UniquePtr;
+pub use crate::vector::Vector;
+pub use crate::vector::VectorIntoIterator;
 pub use cxxbridge_macro::bridge;
 
 // Not public API.

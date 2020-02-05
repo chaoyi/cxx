@@ -171,3 +171,50 @@ unsafe impl UniquePtrTarget for CxxString {
         unique_ptr_std_string_drop(&mut repr);
     }
 }
+
+use crate::vector::Vector;
+
+// Attempted to put this in expand_unique_ptr() but ran into trait impl problems
+extern "C" {
+    #[link_name = "cxxbridge01$unique_ptr$std$vector$u8$null"]
+    fn unique_ptr_std_vector_u8_null(this: *mut *mut c_void);
+    #[link_name = "cxxbridge01$unique_ptr$std$vector$u8$new"]
+    fn unique_ptr_std_vector_u8_new(this: *mut *mut c_void, value: *mut Vector<u8>);
+    #[link_name = "cxxbridge01$unique_ptr$std$vector$u8$raw"]
+    fn unique_ptr_std_vector_u8_raw(this: *mut *mut c_void, raw: *mut Vector<u8>);
+    #[link_name = "cxxbridge01$unique_ptr$std$vector$u8$get"]
+    fn unique_ptr_std_vector_u8_get(this: *const *mut c_void) -> *const Vector<u8>;
+    #[link_name = "cxxbridge01$unique_ptr$std$vector$u8$release"]
+    fn unique_ptr_std_vector_u8_release(this: *mut *mut c_void) -> *mut Vector<u8>;
+    #[link_name = "cxxbridge01$unique_ptr$std$vector$u8$drop"]
+    fn unique_ptr_std_vector_u8_drop(this: *mut *mut c_void);
+}
+
+// Attempted to put this in expand_unique_ptr() but ran into trait impl problems
+unsafe impl UniquePtrTarget for Vector<u8> {
+    fn __null() -> *mut c_void {
+        let mut repr = ptr::null_mut::<c_void>();
+        unsafe { unique_ptr_std_vector_u8_null(&mut repr) }
+        repr
+    }
+    fn __new(value: Self) -> *mut c_void {
+        let mut repr = ptr::null_mut::<c_void>();
+        let mut value = MaybeUninit::new(value);
+        unsafe { unique_ptr_std_vector_u8_new(&mut repr, value.as_mut_ptr() as *mut Self) }
+        repr
+    }
+    unsafe fn __raw(raw: *mut Self) -> *mut c_void {
+        let mut repr = ptr::null_mut::<c_void>();
+        unique_ptr_std_vector_u8_raw(&mut repr, raw);
+        repr
+    }
+    unsafe fn __get(repr: *mut c_void) -> *const Self {
+        unique_ptr_std_vector_u8_get(&repr)
+    }
+    unsafe fn __release(mut repr: *mut c_void) -> *mut Self {
+        unique_ptr_std_vector_u8_release(&mut repr)
+    }
+    unsafe fn __drop(mut repr: *mut c_void) {
+        unique_ptr_std_vector_u8_drop(&mut repr);
+    }
+}

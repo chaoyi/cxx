@@ -12,7 +12,7 @@ mod ffi {
         type ThingC;
         fn make_demo(appname: &str) -> UniquePtr<ThingC>;
         fn get_name(thing: &ThingC) -> &CxxString;
-        fn do_thing(state: SharedThing);
+        fn do_thing(state: SharedThing) -> UniquePtr<Vector<u8>>;
     }
 
     extern "Rust" {
@@ -31,9 +31,14 @@ fn main() {
     let x = ffi::make_demo("demo of cxx::bridge");
     println!("this is a {}", ffi::get_name(x.as_ref().unwrap()));
 
-    ffi::do_thing(ffi::SharedThing {
+    let vec = ffi::do_thing(ffi::SharedThing {
         z: 222,
         y: Box::new(ThingR(333)),
         x,
     });
+
+    println!("vec length = {}", vec.as_ref().unwrap().len());
+    for (i, v) in vec.as_ref().unwrap().into_iter().enumerate() {
+        println!("vec[{}] = {}", i, v);
+    }
 }

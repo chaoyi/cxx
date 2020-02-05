@@ -11,6 +11,8 @@ mod parse;
 pub mod set;
 mod tokens;
 pub mod types;
+pub mod typename;
+pub mod mangled;
 
 use proc_macro2::Ident;
 use syn::{LitStr, Token};
@@ -70,6 +72,7 @@ pub enum Type {
     UniquePtr(Box<Ty1>),
     Ref(Box<Ref>),
     Str(Box<Ref>),
+    Vector(Box<Ty1>),
 }
 
 pub struct Ty1 {
