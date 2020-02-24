@@ -13,6 +13,8 @@ pub enum Atom {
     I32,
     I64,
     Isize,
+    F32,
+    F64,
     CxxString,
     RustString,
 }
@@ -32,6 +34,8 @@ impl Atom {
             "i32" => Some(I32),
             "i64" => Some(I64),
             "isize" => Some(Isize),
+            "f32" => Some(F32),
+            "f64" => Some(F64),
             "CxxString" => Some(CxxString),
             "String" => Some(RustString),
             _ => None,
@@ -52,6 +56,8 @@ impl Atom {
             I32 => "int32_t",
             I64 => "int64_t",
             Isize => "ssize_t",
+            F32 => "float",
+            F64 => "double",
             CxxString => "std::string",
             RustString => "cxxbridge::RustString",
         }

@@ -101,7 +101,7 @@ fn write_includes(out: &mut OutFile, types: &Types) {
                 Some(U8) | Some(U16) | Some(U32) | Some(U64) | Some(Usize) | Some(I8)
                 | Some(I16) | Some(I32) | Some(I64) | Some(Isize) => has_int = true,
                 Some(CxxString) => has_string = true,
-                Some(Bool) | Some(RustString) | None => {}
+                Some(Bool) | Some(RustString) | Some(F32) | Some(F64) | None => {}
             },
             Type::UniquePtr(_) => has_unique_ptr = true,
             Type::Vector(_) => has_vector = true,
