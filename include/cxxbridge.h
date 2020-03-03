@@ -58,6 +58,8 @@ private:
   Repr repr;
 };
 
+#ifndef CXXBRIDGE01_RUST_VEC
+#define CXXBRIDGE01_RUST_VEC
 template <typename T>
 class RustVec final {
 public:
@@ -76,6 +78,7 @@ private:
   size_t len;
   size_t capacity;
 };
+#endif // CXXBRIDGE01_RUST_VEC
 
 #ifndef CXXBRIDGE01_RUST_BOX
 #define CXXBRIDGE01_RUST_BOX
