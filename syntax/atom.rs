@@ -1,3 +1,4 @@
+use crate::syntax::Type;
 use proc_macro2::Ident;
 
 #[derive(Copy, Clone, PartialEq)]
@@ -58,8 +59,35 @@ impl Atom {
             Isize => "ssize_t",
             F32 => "float",
             F64 => "double",
-            CxxString => "std::string",
-            RustString => "cxxbridge::RustString",
+            CxxString => "::std::string",
+            RustString => "::rust::String",
         }
+    }
+}
+
+impl PartialEq<Atom> for Ident {
+    fn eq(&self, atom: &Atom) -> bool {
+        Atom::from(self) == Some(*atom)
+    }
+}
+
+impl PartialEq<Atom> for Type {
+    fn eq(&self, atom: &Atom) -> bool {
+        match self {
+            Type::Ident(ident) => ident == atom,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<Atom> for &Ident {
+    fn eq(&self, atom: &Atom) -> bool {
+        *self == atom
+    }
+}
+
+impl PartialEq<Atom> for &Type {
+    fn eq(&self, atom: &Atom) -> bool {
+        *self == atom
     }
 }

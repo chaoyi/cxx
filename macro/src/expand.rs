@@ -1,8 +1,8 @@
 use crate::namespace::Namespace;
-use crate::syntax::atom::Atom;
+use crate::syntax::atom::Atom::{self, *};
 use crate::syntax::mangled::ToMangled;
 use crate::syntax::typename::ToTypename;
-use crate::syntax::{self, check, Api, ExternFn, ExternType, Struct, Type, Types, Var};
+use crate::syntax::{self, check, Api, ExternFn, ExternType, Struct, Type, Types};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
 use syn::{spanned::Spanned, Error, ItemMod, Result, Token};
@@ -139,7 +139,17 @@ fn expand_cxx_type(ety: &ExternType) -> TokenStream {
 
 fn expand_cxx_function_decl(namespace: &Namespace, efn: &ExternFn, types: &Types) -> TokenStream {
     let ident = &efn.ident;
-    let args = efn.args.iter().map(|arg| expand_extern_arg(arg, types));
+    let args = efn.args.iter().map(|arg| {
+        let ident = &arg.ident;
+        let ty = expand_extern_type(&arg.ty);
+        if arg.ty == RustString {
+            quote!(#ident: *const #ty)
+        } else if types.needs_indirect_abi(&arg.ty) {
+            quote!(#ident: *mut #ty)
+        } else {
+            quote!(#ident: #ty)
+        }
+    });
     let ret = expand_extern_return_type(&efn.ret, types);
     let mut outparam = None;
     if indirect_return(&efn.ret, types) {
@@ -164,13 +174,13 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
     let vars = efn.args.iter().map(|arg| {
         let var = &arg.ident;
         match &arg.ty {
-            Type::Ident(ident) if ident == "String" => {
-                quote!(#var.as_mut_ptr() as *mut ::cxx::private::RustString)
+            Type::Ident(ident) if ident == RustString => {
+                quote!(#var.as_mut_ptr() as *const ::cxx::private::RustString)
             }
             Type::RustBox(_) => quote!(::std::boxed::Box::into_raw(#var)),
             Type::UniquePtr(_) => quote!(::cxx::UniquePtr::into_raw(#var)),
             Type::Ref(ty) => match &ty.inner {
-                Type::Ident(ident) if ident == "String" => {
+                Type::Ident(ident) if ident == RustString => {
                     quote!(::cxx::private::RustString::from_ref(#var))
                 }
                 _ => quote!(#var),
@@ -212,11 +222,11 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
         .ret
         .as_ref()
         .and_then(|ret| match ret {
-            Type::Ident(ident) if ident == "String" => Some(quote!(#call.into_string())),
+            Type::Ident(ident) if ident == RustString => Some(quote!(#call.into_string())),
             Type::RustBox(_) => Some(quote!(::std::boxed::Box::from_raw(#call))),
             Type::UniquePtr(_) => Some(quote!(::cxx::UniquePtr::from_raw(#call))),
             Type::Ref(ty) => match &ty.inner {
-                Type::Ident(ident) if ident == "String" => Some(quote!(#call.as_string())),
+                Type::Ident(ident) if ident == RustString => Some(quote!(#call.as_string())),
                 _ => None,
             },
             Type::Str(_) => Some(quote!(#call.as_str())),
@@ -246,24 +256,30 @@ fn expand_rust_type(ety: &ExternType) -> TokenStream {
 
 fn expand_rust_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types) -> TokenStream {
     let ident = &efn.ident;
-    let args = efn.args.iter().map(|arg| expand_extern_arg(arg, types));
+    let args = efn.args.iter().map(|arg| {
+        let ident = &arg.ident;
+        let ty = expand_extern_type(&arg.ty);
+        if types.needs_indirect_abi(&arg.ty) {
+            quote!(#ident: *mut #ty)
+        } else {
+            quote!(#ident: #ty)
+        }
+    });
     let vars = efn.args.iter().map(|arg| {
         let ident = &arg.ident;
-        let var = if types.needs_indirect_abi(&arg.ty) {
-            quote!(::std::ptr::read(#ident))
-        } else {
-            quote!(#ident)
-        };
         match &arg.ty {
-            Type::Ident(ident) if ident == "String" => quote!(#var.into_string()),
-            Type::RustBox(_) => quote!(::std::boxed::Box::from_raw(#var)),
-            Type::UniquePtr(_) => quote!(::cxx::UniquePtr::from_raw(#var)),
+            Type::Ident(i) if i == RustString => {
+                quote!(::std::mem::take((*#ident).as_mut_string()))
+            }
+            Type::RustBox(_) => quote!(::std::boxed::Box::from_raw(#ident)),
+            Type::UniquePtr(_) => quote!(::cxx::UniquePtr::from_raw(#ident)),
             Type::Ref(ty) => match &ty.inner {
-                Type::Ident(ident) if ident == "String" => quote!(#var.as_string()),
-                _ => var,
+                Type::Ident(i) if i == RustString => quote!(#ident.as_string()),
+                _ => quote!(#ident),
             },
-            Type::Str(_) => quote!(#var.as_str()),
-            _ => var,
+            Type::Str(_) => quote!(#ident.as_str()),
+            ty if types.needs_indirect_abi(ty) => quote!(::std::ptr::read(#ident)),
+            _ => quote!(#ident),
         }
     });
     let mut outparam = None;
@@ -274,13 +290,13 @@ fn expand_rust_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Type
         .ret
         .as_ref()
         .and_then(|ret| match ret {
-            Type::Ident(ident) if ident == "String" => {
+            Type::Ident(ident) if ident == RustString => {
                 Some(quote!(::cxx::private::RustString::from(#call)))
             }
             Type::RustBox(_) => Some(quote!(::std::boxed::Box::into_raw(#call))),
             Type::UniquePtr(_) => Some(quote!(::cxx::UniquePtr::into_raw(#call))),
             Type::Ref(ty) => match &ty.inner {
-                Type::Ident(ident) if ident == "String" => {
+                Type::Ident(ident) if ident == RustString => {
                     Some(quote!(::cxx::private::RustString::from_ref(#call)))
                 }
                 _ => None,
@@ -309,19 +325,13 @@ fn expand_rust_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Type
 }
 
 fn expand_rust_box(namespace: &Namespace, ident: &Ident) -> TokenStream {
-    let link_prefix = format!("cxxbridge01$rust_box${}{}$", namespace, ident);
+    let link_prefix = format!("cxxbridge01$box${}{}$", namespace, ident);
     let link_uninit = format!("{}uninit", link_prefix);
-    let link_set_raw = format!("{}set_raw", link_prefix);
     let link_drop = format!("{}drop", link_prefix);
-    let link_deref = format!("{}deref", link_prefix);
-    let link_deref_mut = format!("{}deref_mut", link_prefix);
 
     let local_prefix = format_ident!("{}__box_", ident);
     let local_uninit = format_ident!("{}uninit", local_prefix);
-    let local_set_raw = format_ident!("{}set_raw", local_prefix);
     let local_drop = format_ident!("{}drop", local_prefix);
-    let local_deref = format_ident!("{}deref", local_prefix);
-    let local_deref_mut = format_ident!("{}deref_mut", local_prefix);
 
     let span = ident.span();
     quote_spanned! {span=>
@@ -336,31 +346,9 @@ fn expand_rust_box(namespace: &Namespace, ident: &Ident) -> TokenStream {
             );
         }
         #[doc(hidden)]
-        #[export_name = #link_set_raw]
-        unsafe extern "C" fn #local_set_raw(
-            this: *mut ::std::boxed::Box<#ident>,
-            raw: *mut #ident,
-        ) {
-            ::std::ptr::write(this, ::std::boxed::Box::from_raw(raw));
-        }
-        #[doc(hidden)]
         #[export_name = #link_drop]
         unsafe extern "C" fn #local_drop(this: *mut ::std::boxed::Box<#ident>) {
             ::std::ptr::drop_in_place(this);
-        }
-        #[doc(hidden)]
-        #[export_name = #link_deref]
-        unsafe extern "C" fn #local_deref(
-            this: *const ::std::boxed::Box<::std::mem::MaybeUninit<#ident>>,
-        ) -> *const ::std::mem::MaybeUninit<#ident> {
-            &**this
-        }
-        #[doc(hidden)]
-        #[export_name = #link_deref_mut]
-        unsafe extern "C" fn #local_deref_mut(
-            this: *mut ::std::boxed::Box<::std::mem::MaybeUninit<#ident>>,
-        ) -> *mut ::std::mem::MaybeUninit<#ident> {
-            &mut **this
         }
     }
 }
@@ -500,13 +488,13 @@ fn indirect_return(ret: &Option<Type>, types: &Types) -> bool {
 
 fn expand_extern_type(ty: &Type) -> TokenStream {
     match ty {
-        Type::Ident(ident) if ident == "String" => quote!(::cxx::private::RustString),
+        Type::Ident(ident) if ident == RustString => quote!(::cxx::private::RustString),
         Type::RustBox(ty) | Type::UniquePtr(ty) | Type::Vector(ty) | Type::RustVec(ty) => {
             let inner = &ty.inner;
             quote!(*mut #inner)
         }
         Type::Ref(ty) => match &ty.inner {
-            Type::Ident(ident) if ident == "String" => quote!(&::cxx::private::RustString),
+            Type::Ident(ident) if ident == RustString => quote!(&::cxx::private::RustString),
             _ => quote!(#ty),
         },
         Type::Str(_) => quote!(::cxx::private::RustStr),
@@ -521,14 +509,4 @@ fn expand_extern_return_type(ret: &Option<Type>, types: &Types) -> TokenStream {
     };
     let ty = expand_extern_type(ret);
     quote!(-> #ty)
-}
-
-fn expand_extern_arg(arg: &Var, types: &Types) -> TokenStream {
-    let ident = &arg.ident;
-    let ty = expand_extern_type(&arg.ty);
-    if types.needs_indirect_abi(&arg.ty) {
-        quote!(#ident: *mut #ty)
-    } else {
-        quote!(#ident: #ty)
-    }
 }
