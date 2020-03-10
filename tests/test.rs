@@ -85,6 +85,12 @@ fn test_c_take() {
     check!(ffi::c_take_unique_ptr_string(
         ffi::c_return_unique_ptr_string()
     ));
+    check!(ffi::c_take_unique_ptr_vector_u8(
+        ffi::c_return_unique_ptr_vector_u8()
+    ));
+    check!(ffi::c_take_unique_ptr_vector_shared(
+        ffi::c_return_unique_ptr_vector_shared()
+    ));
 }
 
 #[test]

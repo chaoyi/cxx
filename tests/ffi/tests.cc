@@ -106,6 +106,18 @@ void c_take_unique_ptr_string(std::unique_ptr<std::string> s) {
   }
 }
 
+void c_take_unique_ptr_vector_u8(std::unique_ptr<std::vector<uint8_t>> v) {
+  if (v->size() == 4) {
+    cxx_test_suite_set_correct();
+  }
+}
+
+void c_take_unique_ptr_vector_shared(std::unique_ptr<std::vector<Shared>> v) {
+  if (v->size() == 2) {
+    cxx_test_suite_set_correct();
+  }
+}
+
 extern "C" C *cxx_test_suite_get_unique_ptr() noexcept {
   return std::unique_ptr<C>(new C{2020}).release();
 }
