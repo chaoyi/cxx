@@ -40,7 +40,10 @@ fn test_c_return() {
     );
     assert_eq!(
         4,
-        ffi::c_return_unique_ptr_vector_u8().as_ref().unwrap().len()
+        ffi::c_return_unique_ptr_vector_u8()
+            .as_ref()
+            .unwrap()
+            .size()
     );
     assert_eq!(
         75,
@@ -55,7 +58,7 @@ fn test_c_return() {
         ffi::c_return_unique_ptr_vector_shared()
             .as_ref()
             .unwrap()
-            .len()
+            .size()
     );
     assert_eq!(
         2021,

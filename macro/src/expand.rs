@@ -26,8 +26,8 @@ pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
     expanded.extend(quote! {
         pub struct Vector<T>(pub ::cxx::RealVector<T>);
         impl<T: cxx::private::VectorTarget<T>> Vector<T> {
-            pub fn len(&self) -> usize {
-                self.0.len()
+            pub fn size(&self) -> usize {
+                self.0.size()
             }
             pub fn get(&self, pos: usize) -> Option<&T> {
                 self.0.get(pos)

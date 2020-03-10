@@ -27,7 +27,7 @@ pub struct RealVector<T> {
 
 impl<T: VectorTarget<T>> RealVector<T> {
     /// Returns the length of the vector in bytes.
-    pub fn len(&self) -> usize {
+    pub fn size(&self) -> usize {
         T::vector_length(self)
     }
 
@@ -37,11 +37,11 @@ impl<T: VectorTarget<T>> RealVector<T> {
 
     /// Returns true if `self` has a length of zero bytes.
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.size() == 0
     }
 
     pub fn get(&self, pos: usize) -> Option<&T> {
-        if pos < self.len() {
+        if pos < self.size() {
             Some(self.get_unchecked(pos))
         } else {
             None
