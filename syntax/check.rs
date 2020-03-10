@@ -59,7 +59,7 @@ pub(crate) fn typecheck(apis: &[Api], types: &Types) -> Result<()> {
                         errors.push(unsupported_rust_type_in_vector(tyi));
                     }
                     match Atom::from(ident) {
-                        Some(U8) => continue, // Just u8 for now
+                        None | Some(U8) => continue, // Either user-defined type or u8 for now
                         _ => {}
                     }
                 }

@@ -509,10 +509,15 @@ fn write_generic_instantiations(out: &mut OutFile, types: &Types) {
     }
 
     fn allow_vector(ident: &Ident) -> bool {
-        if let Some(Atom::U8) = Atom::from(ident) {
-            true
+        // For now, allow either u8 or user type
+        if let Some(ty) = Atom::from(ident) {
+            if ty == Atom::U8 {
+                true
+            } else {
+                false
+            }
         } else {
-            false
+            true
         }
     }
 
@@ -760,8 +765,8 @@ fn write_vector(out: &mut OutFile, ident: &Ident) {
 
     writeln!(
         out,
-        "const uint8_t *cxxbridge01$std$vector${}$get_unchecked(const std::vector<{}> &s, size_t pos) noexcept {{",
-        instance, inner,
+        "const {} *cxxbridge01$std$vector${}$get_unchecked(const std::vector<{}> &s, size_t pos) noexcept {{",
+        inner, instance, inner,
     );
     writeln!(out, "  return &s[pos];");
     writeln!(out, "}}");

@@ -25,6 +25,8 @@ const size_t &c_return_ref(const Shared &shared);
 rust::Str c_return_str(const Shared &shared);
 rust::String c_return_rust_string();
 std::unique_ptr<std::string> c_return_unique_ptr_string();
+std::unique_ptr<std::vector<uint8_t>> c_return_unique_ptr_vector_u8();
+std::unique_ptr<std::vector<Shared>> c_return_unique_ptr_vector_shared();
 
 void c_take_primitive(size_t n);
 void c_take_shared(Shared shared);

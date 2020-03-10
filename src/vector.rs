@@ -1,11 +1,11 @@
-pub trait VecOps<T> {
-    fn get_unchecked(v: &Vector<T>, pos: usize) -> &T
+pub trait VectorTarget<T> {
+    fn get_unchecked(v: &RealVector<T>, pos: usize) -> &T
     where
         Self: Sized;
-    fn vector_length(v: &Vector<T>) -> usize
+    fn vector_length(v: &RealVector<T>) -> usize
     where
         Self: Sized;
-    fn push_back(v: &Vector<T>, item: &T)
+    fn push_back(v: &RealVector<T>, item: &T)
     where
         Self: Sized;
 }
@@ -21,11 +21,11 @@ pub trait VecOps<T> {
 /// look at a Vector through a reference or smart pointer, as in `&Vector`
 /// or `UniquePtr<Vector>`.
 #[repr(C)]
-pub struct Vector<T> {
+pub struct RealVector<T> {
     _private: [T; 0],
 }
 
-impl<T: VecOps<T>> Vector<T> {
+impl<T: VectorTarget<T>> RealVector<T> {
     /// Returns the length of the vector in bytes.
     pub fn len(&self) -> usize {
         T::vector_length(self)
@@ -54,11 +54,11 @@ impl<T: VecOps<T>> Vector<T> {
 }
 
 pub struct VectorIntoIterator<'a, T> {
-    v: &'a Vector<T>,
+    v: &'a RealVector<T>,
     index: usize,
 }
 
-impl<'a, T: VecOps<T>> IntoIterator for &'a Vector<T> {
+impl<'a, T: VectorTarget<T>> IntoIterator for &'a RealVector<T> {
     type Item = &'a T;
     type IntoIter = VectorIntoIterator<'a, T>;
 
@@ -67,7 +67,7 @@ impl<'a, T: VecOps<T>> IntoIterator for &'a Vector<T> {
     }
 }
 
-impl<'a, T: VecOps<T>> Iterator for VectorIntoIterator<'a, T> {
+impl<'a, T: VectorTarget<T>> Iterator for VectorIntoIterator<'a, T> {
     type Item = &'a T;
     fn next(&mut self) -> Option<Self::Item> {
         self.index = self.index + 1;
@@ -76,30 +76,30 @@ impl<'a, T: VecOps<T>> Iterator for VectorIntoIterator<'a, T> {
 }
 
 // Attempted to put this in expand_vector() but ran into trait impl problems
-impl VecOps<u8> for u8 {
-    fn get_unchecked(v: &Vector<u8>, pos: usize) -> &u8 {
+impl VectorTarget<u8> for u8 {
+    fn get_unchecked(v: &RealVector<u8>, pos: usize) -> &u8 {
         unsafe {
             extern "C" {
                 #[link_name = "cxxbridge01$std$vector$u8$get_unchecked"]
-                fn __get_unchecked(_: &Vector<u8>, _: usize) -> &u8;
+                fn __get_unchecked(_: &RealVector<u8>, _: usize) -> &u8;
             }
             __get_unchecked(v, pos)
         }
     }
-    fn vector_length(v: &Vector<u8>) -> usize {
+    fn vector_length(v: &RealVector<u8>) -> usize {
         unsafe {
             extern "C" {
                 #[link_name = "cxxbridge01$std$vector$u8$length"]
-                fn __vector_length(_: &Vector<u8>) -> usize;
+                fn __vector_length(_: &RealVector<u8>) -> usize;
             }
             __vector_length(v)
         }
     }
-    fn push_back(v: &Vector<u8>, item: &u8) {
+    fn push_back(v: &RealVector<u8>, item: &u8) {
         unsafe {
             extern "C" {
                 #[link_name = "cxxbridge01$std$vector$u8$push_back"]
-                fn __push_back(_: &Vector<u8>, _: &u8) -> usize;
+                fn __push_back(_: &RealVector<u8>, _: &u8) -> usize;
             }
             __push_back(v, item);
         }

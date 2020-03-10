@@ -36,6 +36,22 @@ std::unique_ptr<std::string> c_return_unique_ptr_string() {
   return std::unique_ptr<std::string>(new std::string("2020"));
 }
 
+std::unique_ptr<std::vector<uint8_t>> c_return_unique_ptr_vector_u8() {
+  auto retval = std::unique_ptr<std::vector<uint8_t>>(new std::vector<uint8_t>());
+  retval->push_back(86);
+  retval->push_back(75);
+  retval->push_back(30);
+  retval->push_back(9);
+  return retval;
+}
+
+std::unique_ptr<std::vector<Shared>> c_return_unique_ptr_vector_shared() {
+  auto retval = std::unique_ptr<std::vector<Shared>>(new std::vector<Shared>());
+  retval->push_back(Shared{2020});
+  retval->push_back(Shared{2021});
+  return retval;
+}
+
 void c_take_primitive(size_t n) {
   if (n == 2020) {
     cxx_test_suite_set_correct();

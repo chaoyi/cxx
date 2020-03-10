@@ -21,6 +21,29 @@ pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
     let mut hidden = TokenStream::new();
     let mut has_rust_type = false;
 
+    // "Header" to define newtypes locally so we can implement
+    // traits on them.
+    expanded.extend(quote! {
+        pub struct Vector<T>(pub ::cxx::RealVector<T>);
+        impl<T: cxx::private::VectorTarget<T>> Vector<T> {
+            pub fn len(&self) -> usize {
+                self.0.len()
+            }
+            pub fn get(&self, pos: usize) -> Option<&T> {
+                self.0.get(pos)
+            }
+            pub fn get_unchecked(&self, pos: usize) -> &T {
+                self.0.get_unchecked(pos)
+            }
+            pub fn is_empty(&self) -> bool {
+                self.0.is_empty()
+            }
+            pub fn push_back(&mut self, item: &T) {
+                self.0.push_back(item)
+            }
+        }
+    });
+
     for api in &apis {
         if let Api::RustType(ety) = api {
             expanded.extend(expand_rust_type(ety));
@@ -67,13 +90,20 @@ pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
                 if Atom::from(ident).is_none() {
                     expanded.extend(expand_unique_ptr(namespace, &ptr.inner));
                 }
-            } /* else if let Type::Vector(_) = &ptr.inner {
-                  expanded.extend(expand_unique_ptr(namespace, &ptr.inner));
-              }*/
+            } else if let Type::Vector(_) = &ptr.inner {
+                // Generate code for unique_ptr<vector<T>> if T is not an atom
+                // or if T is a u8.
+                // Code for atoms is already generated
+                if Atom::from(ident).is_none() || Atom::from(ident) == Some(Atom::U8) {
+                    expanded.extend(expand_unique_ptr(namespace, &ptr.inner));
+                }
+            }
         } else if let Type::Vector(ptr) = ty {
             if let Type::Ident(ident) = &ptr.inner {
-                if Atom::from(ident).is_some() {
-                    //expanded.extend(expand_vector(namespace, &ptr.inner));
+                if Atom::from(ident).is_none() {
+                    // Generate code for Vector<T> if T is not an atom
+                    // Code for atoms is already generated
+                    expanded.extend(expand_vector(namespace, &ptr.inner));
                 }
             }
         }
@@ -372,7 +402,7 @@ fn expand_rust_vec(namespace: &Namespace, ty: &Type) -> TokenStream {
             std::ptr::drop_in_place(this);
         }
         #[export_name = #link_to_vector]
-        unsafe extern "C" fn #local_to_vector(this: *mut ::cxx::RustVec<#inner>, vector: *mut cxx::Vector<#inner>) {
+        unsafe extern "C" fn #local_to_vector(this: *mut ::cxx::RustVec<#inner>, vector: *mut ::cxx::RealVector<#inner>) {
             this.as_ref().unwrap().to_vector(vector.as_mut().unwrap());
         }
     }
@@ -443,31 +473,41 @@ fn expand_unique_ptr(namespace: &Namespace, ty: &Type) -> TokenStream {
     }
 }
 
-fn _expand_vector(namespace: &Namespace, ty: &Type) -> TokenStream {
+fn expand_vector(namespace: &Namespace, ty: &Type) -> TokenStream {
     let inner = ty;
     let mangled = ty.to_mangled(&namespace.segments) + "$";
     let prefix = format!("cxxbridge01$std$vector${}", mangled);
     let link_length = format!("{}length", prefix);
     let link_get_unchecked = format!("{}get_unchecked", prefix);
+    let link_push_back = format!("{}push_back", prefix);
 
     quote! {
-        impl cxx::VecOps<#inner> for #inner {
-            fn get_unchecked(v: &cxx::Vector<#inner>, pos: usize) -> &#inner {
+        impl ::cxx::private::VectorTarget<#inner> for #inner {
+            fn get_unchecked(v: &::cxx::RealVector<#inner>, pos: usize) -> &#inner {
                 extern "C" {
                     #[link_name = #link_get_unchecked]
-                    fn __get_unchecked(_: &cxx::Vector<#inner>, _: usize) -> &#inner;
+                    fn __get_unchecked(_: &::cxx::RealVector<#inner>, _: usize) -> &#inner;
                 }
                 unsafe {
                     __get_unchecked(v, pos)
                 }
             }
-            fn vector_length(v: &cxx::Vector<#inner>) -> usize {
+            fn vector_length(v: &::cxx::RealVector<#inner>) -> usize {
                 unsafe {
                     extern "C" {
                         #[link_name = #link_length]
-                        fn __vector_length(_: &cxx::Vector<#inner>) -> usize;
+                        fn __vector_length(_: &::cxx::RealVector<#inner>) -> usize;
                     }
                     __vector_length(v)
+                }
+            }
+            fn push_back(v: &::cxx::RealVector<#inner>, item: &#inner) {
+                unsafe {
+                    extern "C" {
+                        #[link_name = #link_push_back]
+                        fn __push_back(_: &::cxx::RealVector<#inner>, _: &#inner) -> usize;
+                    }
+                    __push_back(v, item);
                 }
             }
         }
@@ -489,8 +529,8 @@ fn indirect_return(ret: &Option<Type>, types: &Types) -> bool {
 fn expand_extern_type(ty: &Type) -> TokenStream {
     match ty {
         Type::Ident(ident) if ident == RustString => quote!(::cxx::private::RustString),
-        Type::RustBox(ty) | Type::UniquePtr(ty) | Type::Vector(ty) | Type::RustVec(ty) => {
-            let inner = &ty.inner;
+        Type::RustBox(ty) | Type::UniquePtr(ty) => {
+            let inner = expand_extern_type(&ty.inner);
             quote!(*mut #inner)
         }
         Type::Ref(ty) => match &ty.inner {

@@ -19,6 +19,8 @@ pub mod ffi {
         fn c_return_str(shared: &Shared) -> &str;
         fn c_return_rust_string() -> String;
         fn c_return_unique_ptr_string() -> UniquePtr<CxxString>;
+        fn c_return_unique_ptr_vector_u8() -> UniquePtr<Vector<u8>>;
+        fn c_return_unique_ptr_vector_shared() -> UniquePtr<Vector<Shared>>;
 
         fn c_take_primitive(n: usize);
         fn c_take_shared(shared: Shared);

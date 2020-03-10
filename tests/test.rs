@@ -38,6 +38,34 @@ fn test_c_return() {
             .to_str()
             .unwrap()
     );
+    assert_eq!(
+        4,
+        ffi::c_return_unique_ptr_vector_u8().as_ref().unwrap().len()
+    );
+    assert_eq!(
+        75,
+        *ffi::c_return_unique_ptr_vector_u8()
+            .as_ref()
+            .unwrap()
+            .get(1)
+            .unwrap()
+    );
+    assert_eq!(
+        2,
+        ffi::c_return_unique_ptr_vector_shared()
+            .as_ref()
+            .unwrap()
+            .len()
+    );
+    assert_eq!(
+        2021,
+        ffi::c_return_unique_ptr_vector_shared()
+            .as_ref()
+            .unwrap()
+            .get(1)
+            .unwrap()
+            .z
+    );
 }
 
 #[test]

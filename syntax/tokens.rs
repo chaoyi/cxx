@@ -32,7 +32,8 @@ impl ToTokens for Var {
 
 impl ToTokens for Ty1 {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        if self.name == "UniquePtr" || self.name == "Vector" || self.name == "RustVec" {
+        // Do not add cxx namespace to Vector since we're defining it in the user crate
+        if self.name == "UniquePtr" || self.name == "RustVec" {
             let span = self.name.span();
             tokens.extend(quote_spanned!(span=> ::cxx::));
         }

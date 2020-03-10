@@ -360,7 +360,7 @@ mod vector;
 pub use crate::cxx_string::CxxString;
 pub use crate::rust_vec::RustVec;
 pub use crate::unique_ptr::UniquePtr;
-pub use crate::vector::Vector;
+pub use crate::vector::RealVector;
 pub use crate::vector::VectorIntoIterator;
 pub use cxxbridge_macro::bridge;
 
@@ -372,6 +372,7 @@ pub mod private {
     pub use crate::rust_string::RustString;
     pub use crate::unique_ptr::UniquePtrTarget;
     pub use crate::unwind::catch_unwind;
+    pub use crate::vector::VectorTarget;
 }
 
 use crate::error::Result;
