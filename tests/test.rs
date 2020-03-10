@@ -46,12 +46,12 @@ fn test_c_return() {
             .size()
     );
     assert_eq!(
-        75,
-        *ffi::c_return_unique_ptr_vector_u8()
+        200_u8,
+        ffi::c_return_unique_ptr_vector_u8()
             .as_ref()
             .unwrap()
-            .get(1)
-            .unwrap()
+            .into_iter()
+            .sum()
     );
     assert_eq!(
         2,
@@ -61,13 +61,13 @@ fn test_c_return() {
             .size()
     );
     assert_eq!(
-        2021,
+        2021_usize,
         ffi::c_return_unique_ptr_vector_shared()
             .as_ref()
             .unwrap()
-            .get(1)
-            .unwrap()
-            .z
+            .into_iter()
+            .map(|o| o.z)
+            .sum()
     );
 }
 
@@ -91,6 +91,13 @@ fn test_c_take() {
     check!(ffi::c_take_unique_ptr_vector_shared(
         ffi::c_return_unique_ptr_vector_shared()
     ));
+
+    check!(ffi::c_take_vec_u8(&[86_u8, 75_u8, 30_u8, 9_u8].to_vec()));
+
+    check!(ffi::c_take_vec_shared(&vec![
+        ffi::Shared { z: 1010 },
+        ffi::Shared { z: 1011 }
+    ]));
 }
 
 #[test]

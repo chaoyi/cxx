@@ -77,9 +77,8 @@ private:
 template <typename T>
 class RustVec final {
 public:
-  void to_vector(const std::vector<T> &vector) const noexcept;
-  size_t length() const noexcept { return len; };
-  size_t size() const noexcept { return len; };
+  size_t size() const noexcept;
+  explicit operator std::vector<T>() const noexcept;
 
 private:
   RustVec() noexcept;

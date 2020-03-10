@@ -18,7 +18,7 @@ mod ffi {
         fn make_demo(appname: &str) -> UniquePtr<ThingC>;
         fn get_name(thing: &ThingC) -> &CxxString;
         fn do_thing(state: SharedThing) -> UniquePtr<Vector<u8>>;
-        fn get_jb(v: &RustVec<u8>) -> JsonBlob;
+        fn get_jb(v: &Vec<u8>) -> JsonBlob;
     }
 
     extern "Rust" {
@@ -43,7 +43,7 @@ fn main() {
         x,
     });
 
-    println!("vec length = {}", vec.as_ref().unwrap().len());
+    println!("vec length = {}", vec.as_ref().unwrap().size());
     for (i, v) in vec.as_ref().unwrap().into_iter().enumerate() {
         println!("vec[{}] = {}", i, v);
     }
@@ -52,7 +52,7 @@ fn main() {
     for _ in 0..1000 {
         rv.push(33);
     }
-    let jb = ffi::get_jb(&cxx::RustVec::from(rv));
+    let jb = ffi::get_jb(&rv);
     println!("json: {}", jb.json.as_ref().unwrap());
     for (i, v) in jb.blob.as_ref().unwrap().into_iter().enumerate() {
         println!("jb.blob[{}] = {}", i, v);

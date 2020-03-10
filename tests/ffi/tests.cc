@@ -1,3 +1,4 @@
+#include <numeric>
 #include "tests/ffi/tests.h"
 #include "tests/ffi/lib.rs"
 
@@ -47,8 +48,8 @@ std::unique_ptr<std::vector<uint8_t>> c_return_unique_ptr_vector_u8() {
 
 std::unique_ptr<std::vector<Shared>> c_return_unique_ptr_vector_shared() {
   auto retval = std::unique_ptr<std::vector<Shared>>(new std::vector<Shared>());
-  retval->push_back(Shared{2020});
-  retval->push_back(Shared{2021});
+  retval->push_back(Shared{1010});
+  retval->push_back(Shared{1011});
   return retval;
 }
 
@@ -114,6 +115,25 @@ void c_take_unique_ptr_vector_u8(std::unique_ptr<std::vector<uint8_t>> v) {
 
 void c_take_unique_ptr_vector_shared(std::unique_ptr<std::vector<Shared>> v) {
   if (v->size() == 2) {
+    cxx_test_suite_set_correct();
+  }
+}
+
+void c_take_vec_u8(const rust::RustVec<uint8_t>& v) {
+  auto cv = static_cast<std::vector<uint8_t>>(v);
+  uint8_t sum = std::accumulate(cv.begin(), cv.end(), 0);
+  if (sum == 200) {
+    cxx_test_suite_set_correct();
+  }
+}
+
+void c_take_vec_shared(const rust::RustVec<Shared>& v) {
+  auto cv = static_cast<std::vector<Shared>>(v);
+  uint32_t sum = 0;
+  for (auto i: cv) {
+    sum += i.z;
+  }
+  if (sum == 2021) {
     cxx_test_suite_set_correct();
   }
 }

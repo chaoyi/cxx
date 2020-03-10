@@ -3,46 +3,37 @@ use crate::vector::VectorTarget;
 
 #[repr(C)]
 pub struct RustVec<T: VectorTarget<T>> {
-    ptr: *mut T,
-    len: usize,
-    capacity: usize,
+    repr: Vec<T>,
 }
 
 impl<T: VectorTarget<T>> RustVec<T> {
-    pub fn from(mut s: Vec<T>) -> Self {
-        let ret = RustVec {
-            ptr: s.as_mut_ptr(),
-            len: s.len(),
-            capacity: s.capacity(),
-        };
-        std::mem::forget(s);
-        ret
+    pub fn from(v: Vec<T>) -> Self {
+        RustVec { repr: v }
+    }
+
+    pub fn from_ref(v: &Vec<T>) -> &Self {
+        unsafe { std::mem::transmute::<&Vec<T>, &RustVec<T>>(v) }
     }
 
     pub fn into_vec(self) -> Vec<T> {
-        self.to_vec()
+        self.repr
+    }
+
+    pub fn as_vec(&self) -> &Vec<T> {
+        &self.repr
+    }
+
+    pub fn as_mut_vec(&mut self) -> &mut Vec<T> {
+        &mut self.repr
     }
 
     pub fn len(&self) -> usize {
-        self.len
+        self.repr.len()
     }
 
-    pub fn to_vector(&self, vec: &mut RealVector<T>) {
-        let v = self.to_vec();
-        for item in &v {
+    pub fn into_vector(&self, vec: &mut RealVector<T>) {
+        for item in &self.repr {
             vec.push_back(item);
         }
-        std::mem::forget(v);
-    }
-
-    fn to_vec(&self) -> Vec<T> {
-        unsafe { Vec::<T>::from_raw_parts(self.ptr, self.len, self.capacity) }
-    }
-}
-
-impl<T: VectorTarget<T>> Drop for RustVec<T> {
-    fn drop(&mut self) {
-        let v = self.to_vec();
-        drop(v);
     }
 }

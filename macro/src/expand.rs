@@ -1,7 +1,6 @@
 use crate::namespace::Namespace;
 use crate::syntax::atom::Atom::{self, *};
 use crate::syntax::mangled::ToMangled;
-use crate::syntax::typename::ToTypename;
 use crate::syntax::{self, check, Api, ExternFn, ExternType, Struct, Type, Types};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
@@ -40,6 +39,14 @@ pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
             }
             pub fn push_back(&mut self, item: &T) {
                 self.0.push_back(item)
+            }
+        }
+        impl<'a, T: cxx::private::VectorTarget<T>> IntoIterator for &'a Vector<T> {
+            type Item = &'a T;
+            type IntoIter = <&'a ::cxx::RealVector<T> as IntoIterator>::IntoIter;
+
+            fn into_iter(self) -> Self::IntoIter {
+                self.0.into_iter()
             }
         }
     });
@@ -81,9 +88,7 @@ pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
             }
         } else if let Type::RustVec(ty) = ty {
             if let Type::Ident(ident) = &ty.inner {
-                if Atom::from(ident).is_some() {
-                    hidden.extend(expand_rust_vec(namespace, &ty.inner));
-                }
+                hidden.extend(expand_rust_vec(namespace, &ty.inner, ident));
             }
         } else if let Type::UniquePtr(ptr) = ty {
             if let Type::Ident(ident) = &ptr.inner {
@@ -209,10 +214,12 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
             }
             Type::RustBox(_) => quote!(::std::boxed::Box::into_raw(#var)),
             Type::UniquePtr(_) => quote!(::cxx::UniquePtr::into_raw(#var)),
+            Type::RustVec(_) => quote!(::cxx::RustVec::from(#var)),
             Type::Ref(ty) => match &ty.inner {
                 Type::Ident(ident) if ident == RustString => {
                     quote!(::cxx::private::RustString::from_ref(#var))
                 }
+                Type::RustVec(_) => quote!(::cxx::RustVec::from_ref(#var)),
                 _ => quote!(#var),
             },
             Type::Str(_) => quote!(::cxx::private::RustStr::from(#var)),
@@ -383,16 +390,18 @@ fn expand_rust_box(namespace: &Namespace, ident: &Ident) -> TokenStream {
     }
 }
 
-fn expand_rust_vec(namespace: &Namespace, ty: &Type) -> TokenStream {
+fn expand_rust_vec(namespace: &Namespace, ty: &Type, ident: &Ident) -> TokenStream {
     let inner = ty;
     let mangled = ty.to_mangled(&namespace.segments) + "$";
     let link_prefix = format!("cxxbridge01$rust_vec${}", mangled);
     let link_drop = format!("{}drop", link_prefix);
-    let link_to_vector = format!("{}to_vector", link_prefix);
+    let link_vector_from = format!("{}vector_from", link_prefix);
+    let link_len = format!("{}len", link_prefix);
 
-    let local_prefix = format_ident!("{}__vec_", inner.to_typename(&namespace.segments));
+    let local_prefix = format_ident!("{}__vec_", ident);
     let local_drop = format_ident!("{}drop", local_prefix);
-    let local_to_vector = format_ident!("{}to_vector", local_prefix);
+    let local_vector_from = format_ident!("{}vector_from", local_prefix);
+    let local_len = format_ident!("{}len", local_prefix);
 
     let span = ty.span();
     quote_spanned! {span=>
@@ -401,9 +410,13 @@ fn expand_rust_vec(namespace: &Namespace, ty: &Type) -> TokenStream {
         unsafe extern "C" fn #local_drop(this: *mut ::cxx::RustVec<#inner>) {
             std::ptr::drop_in_place(this);
         }
-        #[export_name = #link_to_vector]
-        unsafe extern "C" fn #local_to_vector(this: *mut ::cxx::RustVec<#inner>, vector: *mut ::cxx::RealVector<#inner>) {
-            this.as_ref().unwrap().to_vector(vector.as_mut().unwrap());
+        #[export_name = #link_vector_from]
+        unsafe extern "C" fn #local_vector_from(this: *mut ::cxx::RustVec<#inner>, vector: *mut ::cxx::RealVector<#inner>) {
+            this.as_ref().unwrap().into_vector(vector.as_mut().unwrap());
+        }
+        #[export_name = #link_len]
+        unsafe extern "C" fn #local_len(this: *const ::cxx::RustVec<#inner>) -> usize {
+            this.as_ref().unwrap().len()
         }
     }
 }
@@ -533,8 +546,13 @@ fn expand_extern_type(ty: &Type) -> TokenStream {
             let inner = expand_extern_type(&ty.inner);
             quote!(*mut #inner)
         }
+        Type::RustVec(ty) => quote!(::cxx::RustVec<#ty>),
         Type::Ref(ty) => match &ty.inner {
             Type::Ident(ident) if ident == RustString => quote!(&::cxx::private::RustString),
+            Type::RustVec(ty) => {
+                let inner = expand_extern_type(&ty.inner);
+                quote!(&::cxx::RustVec<#inner>)
+            }
             _ => quote!(#ty),
         },
         Type::Str(_) => quote!(::cxx::private::RustStr),

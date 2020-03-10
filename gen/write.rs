@@ -463,7 +463,7 @@ fn write_type(out: &mut OutFile, ty: &Type) {
             write!(out, ">");
         }
         Type::RustVec(ty) => {
-            write!(out, "cxxbridge::RustVec<");
+            write!(out, "::rust::RustVec<");
             write_type(out, &ty.inner);
             write!(out, ">");
         }
@@ -603,13 +603,18 @@ fn write_rust_vec_extern(out: &mut OutFile, ty: &Type) {
     writeln!(out, "#define CXXBRIDGE01_RUST_VEC_{}", instance);
     writeln!(
         out,
-        "void cxxbridge01$rust_vec${}$drop(cxxbridge::RustVec<{}> *ptr) noexcept;",
+        "void cxxbridge01$rust_vec${}$drop(::rust::RustVec<{}> *ptr) noexcept;",
         instance, inner,
     );
     writeln!(
         out,
-        "void cxxbridge01$rust_vec${}$to_vector(const cxxbridge::RustVec<{}> *ptr, const std::vector<{}> &vector) noexcept;",
+        "void cxxbridge01$rust_vec${}$vector_from(const ::rust::RustVec<{}> *ptr, const std::vector<{}> &vector) noexcept;",
         instance, inner, inner
+    );
+    writeln!(
+        out,
+        "size_t cxxbridge01$rust_vec${}$len(const ::rust::RustVec<{}> *ptr) noexcept;",
+        instance, inner,
     );
     writeln!(out, "#endif // CXXBRIDGE01_RUST_VEC_{}", instance);
 }
@@ -648,15 +653,20 @@ fn write_rust_vec_impl(out: &mut OutFile, ty: &Type) {
     writeln!(out, "}}");
 
     writeln!(out, "template <>");
+    writeln!(out, "size_t RustVec<{}>::size() const noexcept {{", inner);
+    writeln!(out, "  return cxxbridge01$rust_vec${}$len(this);", instance);
+    writeln!(out, "}}");
+
+    writeln!(out, "template <>");
     writeln!(
         out,
-        "void RustVec<{}>::to_vector(const std::vector<{}>& vector) const noexcept {{",
+        "RustVec<{}>::operator std::vector<{}>() const noexcept {{",
         inner, inner
     );
     writeln!(
         out,
-        "  return cxxbridge01$rust_vec${}$to_vector(this, vector);",
-        instance
+        "  std::vector<{}> v; v.reserve(this->size()); cxxbridge01$rust_vec${}$vector_from(this, v); return v;",
+        inner, instance,
     );
     writeln!(out, "}}");
 }

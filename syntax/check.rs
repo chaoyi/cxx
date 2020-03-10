@@ -29,11 +29,13 @@ pub(crate) fn typecheck(apis: &[Api], types: &Types) -> Result<()> {
                 errors.push(unsupported_box_target(ptr));
             }
             Type::RustVec(ptr) => {
+                // Vec can contain either user-defined type or u8
                 if let Type::Ident(ident) = &ptr.inner {
-                    if types.cxx.contains(ident) {
+                    if Atom::from(ident) == Some(Atom::U8) {
+                        continue;
+                    } else if types.cxx.contains(ident) {
                         errors.push(unsupported_cxx_type_in_vec(ptr));
-                    }
-                    if Atom::from(ident).is_some() {
+                    } else {
                         continue;
                     }
                 }

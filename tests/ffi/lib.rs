@@ -33,6 +33,9 @@ pub mod ffi {
         fn c_take_unique_ptr_string(s: UniquePtr<CxxString>);
         fn c_take_unique_ptr_vector_u8(s: UniquePtr<Vector<u8>>);
         fn c_take_unique_ptr_vector_shared(s: UniquePtr<Vector<Shared>>);
+
+        fn c_take_vec_u8(v: &Vec<u8>);
+        fn c_take_vec_shared(v: &Vec<Shared>);
     }
 
     extern "Rust" {
