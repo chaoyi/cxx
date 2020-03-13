@@ -17,7 +17,7 @@ can be 100% safe.
 
 ```toml
 [dependencies]
-cxx = "0.1"
+cxx = "0.2"
 ```
 
 *Compiler support: requires rustc 1.42+ (beta on January 30, stable on March
@@ -300,15 +300,14 @@ of functions.
 <tr><th>name in Rust</th><th>name in C++</th><th>restrictions</th></tr>
 <tr><td>String</td><td>rust::String</td><td></td></tr>
 <tr><td>&amp;str</td><td>rust::Str</td><td></td></tr>
-<tr><td><a href="https://docs.rs/cxx/0.1/cxx/struct.CxxString.html">CxxString</a></td><td>std::string</td><td><sup><i>cannot be passed by value</i></sup></td></tr>
+<tr><td><a href="https://docs.rs/cxx/0.2/cxx/struct.CxxString.html">CxxString</a></td><td>std::string</td><td><sup><i>cannot be passed by value</i></sup></td></tr>
 <tr><td>Box&lt;T&gt;</td><td>rust::Box&lt;T&gt;</td><td><sup><i>cannot hold opaque C++ type</i></sup></td></tr>
-<tr><td><a href="https://docs.rs/cxx/0.1/cxx/struct.UniquePtr.html">UniquePtr&lt;T&gt;</a></td><td>std::unique_ptr&lt;T&gt;</td><td><sup><i>cannot hold opaque Rust type</i></sup></td></tr>
-<tr><td></td><td></td><td></td></tr>
+<tr><td><a href="https://docs.rs/cxx/0.2/cxx/struct.UniquePtr.html">UniquePtr&lt;T&gt;</a></td><td>std::unique_ptr&lt;T&gt;</td><td><sup><i>cannot hold opaque Rust type</i></sup></td></tr>
 </table>
 
-The C++ API of the `cxxbridge` namespace is defined by the *include/cxxbridge.h*
-file in this repo. You will need to include this header in your C++ code when
-working with those types.
+The C++ API of the `rust` namespace is defined by the *include/cxx.h* file in
+this repo. You will need to include this header in your C++ code when working
+with those types.
 
 The following types are intended to be supported "soon" but are just not
 implemented yet. I don't expect any of these to be hard to make work but it's a
@@ -320,9 +319,11 @@ matter of designing a nice API for each in its non-native language.
 <tr><td>Vec&lt;T&gt;</td><td><sup><i>tbd</i></sup></td></tr>
 <tr><td>BTreeMap&lt;K, V&gt;</td><td><sup><i>tbd</i></sup></td></tr>
 <tr><td>HashMap&lt;K, V&gt;</td><td><sup><i>tbd</i></sup></td></tr>
+<tr><td>Arc&lt;T&gt;</td><td><sup><i>tbd</i></sup></td></tr>
 <tr><td><sup><i>tbd</i></sup></td><td>std::vector&lt;T&gt;</td></tr>
 <tr><td><sup><i>tbd</i></sup></td><td>std::map&lt;K, V&gt;</td></tr>
 <tr><td><sup><i>tbd</i></sup></td><td>std::unordered_map&lt;K, V&gt;</td></tr>
+<tr><td><sup><i>tbd</i></sup></td><td>std::shared_ptr&lt;T&gt;</td></tr>
 </table>
 
 <br>

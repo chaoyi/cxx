@@ -50,7 +50,7 @@
 //! # Example
 //!
 //! A runnable version of this example is provided under the *demo-rs* directory
-//! of https://github.com/dtolnay/cxx (with the C++ side of the implementation
+//! of [https://github.com/dtolnay/cxx] (with the C++ side of the implementation
 //! in the *demo-cxx* directory). To try it out, jump into demo-rs and run
 //! `cargo run`.
 //!
@@ -240,7 +240,7 @@
 //! For use in non-Cargo builds like Bazel or Buck, CXX provides an alternate
 //! way of invoking the C++ code generator as a standalone command line tool.
 //! The tool is packaged as the `cxxbridge-cmd` crate on crates.io or can be
-//! built from the *cmd* directory of https://github.com/dtolnay/cxx.
+//! built from the *cmd* directory of [https://github.com/dtolnay/cxx].
 //!
 //! ```bash
 //! $ cargo install cxxbridge-cmd
@@ -304,15 +304,14 @@
 //! <tr><th>name in Rust</th><th>name in C++</th><th>restrictions</th></tr>
 //! <tr><td>String</td><td>rust::String</td><td></td></tr>
 //! <tr><td>&amp;str</td><td>rust::Str</td><td></td></tr>
-//! <tr><td><a href="https://docs.rs/cxx/0.1/cxx/struct.CxxString.html">CxxString</a></td><td>std::string</td><td><sup><i>cannot be passed by value</i></sup></td></tr>
+//! <tr><td><a href="https://docs.rs/cxx/0.2/cxx/struct.CxxString.html">CxxString</a></td><td>std::string</td><td><sup><i>cannot be passed by value</i></sup></td></tr>
 //! <tr><td>Box&lt;T&gt;</td><td>rust::Box&lt;T&gt;</td><td><sup><i>cannot hold opaque C++ type</i></sup></td></tr>
-//! <tr><td><a href="https://docs.rs/cxx/0.1/cxx/struct.UniquePtr.html">UniquePtr&lt;T&gt;</a></td><td>std::unique_ptr&lt;T&gt;</td><td><sup><i>cannot hold opaque Rust type</i></sup></td></tr>
-//! <tr><td></td><td></td><td></td></tr>
+//! <tr><td><a href="https://docs.rs/cxx/0.2/cxx/struct.UniquePtr.html">UniquePtr&lt;T&gt;</a></td><td>std::unique_ptr&lt;T&gt;</td><td><sup><i>cannot hold opaque Rust type</i></sup></td></tr>
 //! </table>
 //!
-//! The C++ API of the `cxxbridge` namespace is defined by the
-//! *include/cxxbridge.h* file in https://github.com/dtolnay/cxx. You will need
-//! to include this header in your C++ code when working with those types.
+//! The C++ API of the `rust` namespace is defined by the *include/cxx.h* file
+//! in [https://github.com/dtolnay/cxx]. You will need to include this header in
+//! your C++ code when working with those types.
 //!
 //! The following types are intended to be supported "soon" but are just not
 //! implemented yet. I don't expect any of these to be hard to make work but
@@ -324,11 +323,16 @@
 //! <tr><td>Vec&lt;T&gt;</td><td><sup><i>tbd</i></sup></td></tr>
 //! <tr><td>BTreeMap&lt;K, V&gt;</td><td><sup><i>tbd</i></sup></td></tr>
 //! <tr><td>HashMap&lt;K, V&gt;</td><td><sup><i>tbd</i></sup></td></tr>
+//! <tr><td>Arc&lt;T&gt;</td><td><sup><i>tbd</i></sup></td></tr>
 //! <tr><td><sup><i>tbd</i></sup></td><td>std::vector&lt;T&gt;</td></tr>
 //! <tr><td><sup><i>tbd</i></sup></td><td>std::map&lt;K, V&gt;</td></tr>
 //! <tr><td><sup><i>tbd</i></sup></td><td>std::unordered_map&lt;K, V&gt;</td></tr>
+//! <tr><td><sup><i>tbd</i></sup></td><td>std::shared_ptr&lt;T&gt;</td></tr>
 //! </table>
+//!
+//! [https://github.com/dtolnay/cxx]: https://github.com/dtolnay/cxx
 
+#![doc(html_root_url = "https://docs.rs/cxx/0.1.2")]
 #![deny(improper_ctypes)]
 #![allow(
     clippy::large_enum_variant,
@@ -411,8 +415,9 @@ use std::process;
 /// ```
 ///
 /// A runnable working setup with this build script is shown in the
-/// *demo-rs* and *demo-cxx* directories of
-/// [https://github.com/dtolnay/cxx](https://github.com/dtolnay/cxx).
+/// *demo-rs* and *demo-cxx* directories of [https://github.com/dtolnay/cxx].
+///
+/// [https://github.com/dtolnay/cxx]: https://github.com/dtolnay/cxx
 ///
 /// <br>
 ///
@@ -469,10 +474,10 @@ fn try_generate_bridge(rust_source_file: &Path) -> Result<cc::Build> {
     let mut build = paths::cc_build();
     build.file(&bridge_path);
 
-    let ref cxxbridge_h = paths::include_dir()?.join("cxxbridge").join("cxxbridge.h");
-    let _ = fs::create_dir_all(cxxbridge_h.parent().unwrap());
-    let _ = fs::remove_file(cxxbridge_h);
-    let _ = fs::write(cxxbridge_h, gen::include::HEADER);
+    let ref cxx_h = paths::include_dir()?.join("rust").join("cxx.h");
+    let _ = fs::create_dir_all(cxx_h.parent().unwrap());
+    let _ = fs::remove_file(cxx_h);
+    let _ = fs::write(cxx_h, gen::include::HEADER);
 
     Ok(build)
 }

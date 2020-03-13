@@ -80,7 +80,7 @@ impl VectorTarget<u8> for u8 {
     fn get_unchecked(v: &RealVector<u8>, pos: usize) -> &u8 {
         unsafe {
             extern "C" {
-                #[link_name = "cxxbridge01$std$vector$u8$get_unchecked"]
+                #[link_name = "cxxbridge02$std$vector$u8$get_unchecked"]
                 fn __get_unchecked(_: &RealVector<u8>, _: usize) -> &u8;
             }
             __get_unchecked(v, pos)
@@ -89,7 +89,7 @@ impl VectorTarget<u8> for u8 {
     fn vector_length(v: &RealVector<u8>) -> usize {
         unsafe {
             extern "C" {
-                #[link_name = "cxxbridge01$std$vector$u8$length"]
+                #[link_name = "cxxbridge02$std$vector$u8$length"]
                 fn __vector_length(_: &RealVector<u8>) -> usize;
             }
             __vector_length(v)
@@ -98,7 +98,7 @@ impl VectorTarget<u8> for u8 {
     fn push_back(v: &RealVector<u8>, item: &u8) {
         unsafe {
             extern "C" {
-                #[link_name = "cxxbridge01$std$vector$u8$push_back"]
+                #[link_name = "cxxbridge02$std$vector$u8$push_back"]
                 fn __push_back(_: &RealVector<u8>, _: &u8) -> usize;
             }
             __push_back(v, item);

@@ -7,7 +7,7 @@
 #include <type_traits>
 
 namespace rust {
-inline namespace cxxbridge01 {
+inline namespace cxxbridge02 {
 
 struct unsafe_bitcopy_t;
 
@@ -72,8 +72,8 @@ private:
   Repr repr;
 };
 
-#ifndef CXXBRIDGE01_RUST_VEC
-#define CXXBRIDGE01_RUST_VEC
+#ifndef CXXBRIDGE02_RUST_VEC
+#define CXXBRIDGE02_RUST_VEC
 template <typename T>
 class RustVec final {
 public:
@@ -91,10 +91,10 @@ private:
   size_t len;
   size_t capacity;
 };
-#endif // CXXBRIDGE01_RUST_VEC
+#endif // CXXBRIDGE02_RUST_VEC
 
-#ifndef CXXBRIDGE01_RUST_BOX
-#define CXXBRIDGE01_RUST_BOX
+#ifndef CXXBRIDGE02_RUST_BOX
+#define CXXBRIDGE02_RUST_BOX
 template <typename T> class Box final {
 public:
   using value_type = T;
@@ -158,7 +158,7 @@ private:
   void drop() noexcept;
   T *ptr;
 };
-#endif // CXXBRIDGE01_RUST_BOX
+#endif // CXXBRIDGE02_RUST_BOX
 
 std::ostream &operator<<(std::ostream &, const String &);
 std::ostream &operator<<(std::ostream &, const Str &);
@@ -173,5 +173,5 @@ struct unsafe_bitcopy_t {
 };
 constexpr unsafe_bitcopy_t unsafe_bitcopy{};
 
-} // namespace cxxbridge01
+} // namespace cxxbridge02
 } // namespace rust

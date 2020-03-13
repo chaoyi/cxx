@@ -1,9 +1,9 @@
 [package]
 name = "cxx"
-version = "0.1.3-alpha-6"
+version = "0.2.0-alpha-1" # remember to update html_root_url
 authors = ["David Tolnay <dtolnay@gmail.com>"]
 edition = "2018"
-links = "cxxbridge01"
+links = "cxxbridge02"
 license = "MIT OR Apache-2.0"
 description = "Safe interop between Rust and C++"
 repository = "https://github.com/dtolnay/cxx"
@@ -19,7 +19,7 @@ anyhow = "1.0"
 cc = "1.0.49"
 codespan = "0.7"
 codespan-reporting = "0.7"
-cxxbridge-macro = { version = "=0.1.3-alpha-6", path = "macro" }
+cxxbridge-macro = { version = "=0.2.0-alpha-1", path = "macro" }
 link-cplusplus = "1.0"
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 quote = "1.0"
