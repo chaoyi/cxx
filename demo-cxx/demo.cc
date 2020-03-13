@@ -9,7 +9,7 @@ ThingC::ThingC(std::string appname) : appname(std::move(appname)) {}
 
 ThingC::~ThingC() { std::cout << "done with ThingC" << std::endl; }
 
-std::unique_ptr<ThingC> make_demo(rust::Str appname) {
+std::unique_ptr<ThingC> make_demo(::rust::Str appname) {
   return std::unique_ptr<ThingC>(new ThingC(std::string(appname)));
 }
 
@@ -24,7 +24,7 @@ std::unique_ptr<std::vector<uint8_t>> do_thing(SharedThing state) {
   return vec;
 }
 
-JsonBlob get_jb(const ::rust::RustVec<uint8_t>& vec) {
+JsonBlob get_jb(const ::rust::Vec<uint8_t>& vec) {
   JsonBlob retval;
 
   std::cout << "incoming vec length is " << vec.size() << "\n";

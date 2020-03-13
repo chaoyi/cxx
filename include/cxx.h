@@ -75,15 +75,15 @@ private:
 #ifndef CXXBRIDGE02_RUST_VEC
 #define CXXBRIDGE02_RUST_VEC
 template <typename T>
-class RustVec final {
+class Vec final {
 public:
   size_t size() const noexcept;
   explicit operator std::vector<T>() const noexcept;
 
 private:
-  RustVec() noexcept;
-  RustVec(const RustVec &other) noexcept;
-  RustVec &operator=(RustVec other) noexcept;
+  Vec() noexcept;
+  Vec(const Vec &other) noexcept;
+  Vec &operator=(Vec other) noexcept;
   void drop() noexcept;
   
   // Repr

@@ -40,7 +40,7 @@ void c_take_unique_ptr_string(std::unique_ptr<std::string> s);
 void c_take_unique_ptr_vector_u8(std::unique_ptr<std::vector<uint8_t>> v);
 void c_take_unique_ptr_vector_shared(std::unique_ptr<std::vector<Shared>> v);
 
-void c_take_vec_u8(const rust::RustVec<uint8_t>& v);
-void c_take_vec_shared(const rust::RustVec<Shared>& v);
+void c_take_vec_u8(const ::rust::Vec<uint8_t>& v);
+void c_take_vec_shared(const ::rust::Vec<Shared>& v);
 
 } // namespace tests

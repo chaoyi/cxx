@@ -463,7 +463,7 @@ fn write_type(out: &mut OutFile, ty: &Type) {
             write!(out, ">");
         }
         Type::RustVec(ty) => {
-            write!(out, "::rust::RustVec<");
+            write!(out, "::rust::Vec<");
             write_type(out, &ty.inner);
             write!(out, ">");
         }
@@ -473,7 +473,7 @@ fn write_type(out: &mut OutFile, ty: &Type) {
             write!(out, ">");
         }
         Type::Vector(ty) => {
-            write!(out, "std::vector<");
+            write!(out, "::std::vector<");
             write_type(out, &ty.inner);
             write!(out, ">");
         }
@@ -603,17 +603,17 @@ fn write_rust_vec_extern(out: &mut OutFile, ty: &Type) {
     writeln!(out, "#define CXXBRIDGE02_RUST_VEC_{}", instance);
     writeln!(
         out,
-        "void cxxbridge02$rust_vec${}$drop(::rust::RustVec<{}> *ptr) noexcept;",
+        "void cxxbridge02$rust_vec${}$drop(::rust::Vec<{}> *ptr) noexcept;",
         instance, inner,
     );
     writeln!(
         out,
-        "void cxxbridge02$rust_vec${}$vector_from(const ::rust::RustVec<{}> *ptr, const std::vector<{}> &vector) noexcept;",
+        "void cxxbridge02$rust_vec${}$vector_from(const ::rust::Vec<{}> *ptr, const std::vector<{}> &vector) noexcept;",
         instance, inner, inner
     );
     writeln!(
         out,
-        "size_t cxxbridge02$rust_vec${}$len(const ::rust::RustVec<{}> *ptr) noexcept;",
+        "size_t cxxbridge02$rust_vec${}$len(const ::rust::Vec<{}> *ptr) noexcept;",
         instance, inner,
     );
     writeln!(out, "#endif // CXXBRIDGE02_RUST_VEC_{}", instance);
@@ -644,7 +644,7 @@ fn write_rust_vec_impl(out: &mut OutFile, ty: &Type) {
     let instance = ty.to_mangled(&out.namespace);
 
     writeln!(out, "template <>");
-    writeln!(out, "void RustVec<{}>::drop() noexcept {{", inner);
+    writeln!(out, "void Vec<{}>::drop() noexcept {{", inner);
     writeln!(
         out,
         "  return cxxbridge02$rust_vec${}$drop(this);",
@@ -653,14 +653,14 @@ fn write_rust_vec_impl(out: &mut OutFile, ty: &Type) {
     writeln!(out, "}}");
 
     writeln!(out, "template <>");
-    writeln!(out, "size_t RustVec<{}>::size() const noexcept {{", inner);
+    writeln!(out, "size_t Vec<{}>::size() const noexcept {{", inner);
     writeln!(out, "  return cxxbridge02$rust_vec${}$len(this);", instance);
     writeln!(out, "}}");
 
     writeln!(out, "template <>");
     writeln!(
         out,
-        "RustVec<{}>::operator std::vector<{}>() const noexcept {{",
+        "Vec<{}>::operator std::vector<{}>() const noexcept {{",
         inner, inner
     );
     writeln!(
