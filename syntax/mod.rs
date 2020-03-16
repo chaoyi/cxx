@@ -14,7 +14,7 @@ mod tokens;
 pub mod typename;
 pub mod types;
 
-use proc_macro2::Ident;
+use proc_macro2::{Ident, Span};
 use syn::{LitStr, Token};
 
 pub use self::atom::Atom;
@@ -52,6 +52,7 @@ pub struct ExternFn {
     pub receiver: Option<Receiver>,
     pub args: Vec<Var>,
     pub ret: Option<Type>,
+    pub throws: bool,
     pub semi_token: Token![;],
 }
 
@@ -65,7 +66,6 @@ pub struct Receiver {
     pub ident: Ident,
 }
 
-#[derive(Hash, Eq, PartialEq)]
 pub enum Type {
     Ident(Ident),
     RustBox(Box<Ty1>),
@@ -74,6 +74,7 @@ pub enum Type {
     Ref(Box<Ref>),
     Str(Box<Ref>),
     Vector(Box<Ty1>),
+    Void(Span),
 }
 
 pub struct Ty1 {

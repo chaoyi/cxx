@@ -23,7 +23,7 @@ impl<'a> Types<'a> {
         fn visit<'a>(all: &mut Set<'a, Type>, ty: &'a Type) {
             all.insert(ty);
             match ty {
-                Type::Ident(_) | Type::Str(_) => {}
+                Type::Ident(_) | Type::Str(_) | Type::Void(_) => {}
                 Type::RustBox(ty) | Type::UniquePtr(ty) | Type::Vector(ty) | Type::RustVec(ty) => {
                     visit(all, &ty.inner)
                 }

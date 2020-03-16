@@ -18,6 +18,7 @@ impl ToTokens for Type {
                 ty.to_tokens(tokens)
             }
             Type::Ref(r) | Type::Str(r) => r.to_tokens(tokens),
+            Type::Void(span) => tokens.extend(quote_spanned!(*span=> ())),
         }
     }
 }

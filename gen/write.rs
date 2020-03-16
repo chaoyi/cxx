@@ -487,6 +487,7 @@ fn write_type(out: &mut OutFile, ty: &Type) {
         Type::Str(_) => {
             write!(out, "::rust::Str");
         }
+        Type::Void(_) => unreachable!(),
     }
 }
 
@@ -500,6 +501,7 @@ fn write_type_space(out: &mut OutFile, ty: &Type) {
         | Type::Vector(_)
         | Type::RustVec(_) => write!(out, " "),
         Type::Ref(_) => {}
+        Type::Void(_) => unreachable!(),
     }
 }
 

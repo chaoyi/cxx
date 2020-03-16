@@ -1,5 +1,5 @@
 use crate::syntax::atom::Atom::{self, *};
-use crate::syntax::{error, ident, Api, ExternFn, Ty1, Type, Types, Var};
+use crate::syntax::{error, ident, Api, ExternFn, Ref, Ty1, Type, Types, Var};
 use proc_macro2::Ident;
 use syn::{Error, Result};
 
@@ -67,6 +67,11 @@ pub(crate) fn typecheck(apis: &[Api], types: &Types) -> Result<()> {
                 }
                 errors.push(unsupported_vector_target(tyi));
             }
+            Type::Ref(ty) => {
+                if let Type::Void(_) = ty.inner {
+                    errors.push(unsupported_reference_type(ty));
+                }
+            }
             _ => {}
         }
     }
@@ -90,6 +95,12 @@ pub(crate) fn typecheck(apis: &[Api], types: &Types) -> Result<()> {
                     if is_unsized(ty, types) {
                         errors.push(return_by_value(ty, types));
                     }
+                }
+                if efn.throws {
+                    errors.push(Error::new_spanned(
+                        efn,
+                        "fallible functions are not implemented yet",
+                    ));
                 }
             }
             _ => {}
@@ -121,6 +132,7 @@ pub(crate) fn typecheck(apis: &[Api], types: &Types) -> Result<()> {
 fn is_unsized(ty: &Type, types: &Types) -> bool {
     let ident = match ty {
         Type::Ident(ident) => ident,
+        Type::Void(_) => return true,
         _ => return false,
     };
     ident == CxxString || types.cxx.contains(ident) || types.rust.contains(ident)
@@ -190,11 +202,16 @@ fn describe(ty: &Type, types: &Types) -> String {
         Type::Ref(_) => "reference".to_owned(),
         Type::Str(_) => "&str".to_owned(),
         Type::Vector(_) => "vector".to_owned(),
+        Type::Void(_) => "()".to_owned(),
     }
 }
 
 fn unsupported_type(ident: &Ident) -> Error {
     Error::new(ident.span(), "unsupported type")
+}
+
+fn unsupported_reference_type(ty: &Ref) -> Error {
+    Error::new_spanned(ty, "unsupported reference type")
 }
 
 fn unsupported_cxx_type_in_box(unique_ptr: &Ty1) -> Error {
