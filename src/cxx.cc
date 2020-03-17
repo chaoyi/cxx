@@ -53,7 +53,7 @@ String::String(const std::string &s) {
 }
 
 String::String(const char *s) {
-  auto len = strlen(s);
+  auto len = std::strlen(s);
   if (!cxxbridge02$string$from(this, s, len)) {
     throw std::invalid_argument("data for rust::String is not utf-8");
   }
@@ -106,7 +106,7 @@ Str::Str(const std::string &s) : repr(Repr{s.data(), s.length()}) {
   }
 }
 
-Str::Str(const char *s) : repr(Repr{s, strlen(s)}) {
+Str::Str(const char *s) : repr(Repr{s, std::strlen(s)}) {
   if (!cxxbridge02$str$valid(this->repr.ptr, this->repr.len)) {
     throw std::invalid_argument("data for rust::Str is not utf-8");
   }
@@ -135,6 +135,32 @@ std::ostream &operator<<(std::ostream &os, const Str &s) {
   os.write(s.data(), s.size());
   return os;
 }
+
+extern "C" {
+const char *cxxbridge02$error(const char *ptr, size_t len) {
+  char *copy = new char[len];
+  strncpy(copy, ptr, len);
+  return copy;
+}
+} // extern "C"
+
+Error::Error(Str::Repr msg) noexcept : msg(msg) {}
+
+Error::Error(const Error &other) {
+  this->msg.ptr = cxxbridge02$error(other.msg.ptr, other.msg.len);
+  this->msg.len = other.msg.len;
+}
+
+Error::Error(Error &&other) noexcept {
+  delete[] this->msg.ptr;
+  this->msg = other.msg;
+  other.msg.ptr = nullptr;
+  other.msg.len = 0;
+}
+
+Error::~Error() noexcept { delete[] this->msg.ptr; }
+
+const char *Error::what() const noexcept { return this->msg.ptr; }
 
 } // namespace cxxbridge02
 } // namespace rust

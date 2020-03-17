@@ -349,11 +349,15 @@
 
 extern crate link_cplusplus;
 
+#[macro_use]
+mod assert;
+
 mod cxx_string;
 mod error;
 mod gen;
 mod opaque;
 mod paths;
+mod result;
 mod rust_str;
 mod rust_string;
 mod rust_vec;
@@ -373,6 +377,7 @@ pub use cxxbridge_macro::bridge;
 #[doc(hidden)]
 pub mod private {
     pub use crate::opaque::Opaque;
+    pub use crate::result::{r#try, Result};
     pub use crate::rust_str::RustStr;
     pub use crate::rust_string::RustString;
     pub use crate::unique_ptr::UniquePtrTarget;

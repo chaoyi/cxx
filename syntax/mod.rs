@@ -46,6 +46,7 @@ pub struct Struct {
 }
 
 pub struct ExternFn {
+    pub lang: Lang,
     pub doc: Doc,
     pub fn_token: Token![fn],
     pub ident: Ident,
@@ -88,6 +89,12 @@ pub struct Ref {
     pub ampersand: Token![&],
     pub mutability: Option<Token![mut]>,
     pub inner: Type,
+}
+
+#[derive(Copy, Clone, PartialEq)]
+pub enum Lang {
+    Cxx,
+    Rust,
 }
 
 #[derive(Copy, Clone, PartialEq)]
