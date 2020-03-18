@@ -43,4 +43,8 @@ void c_take_unique_ptr_vector_shared(std::unique_ptr<std::vector<Shared>> v);
 void c_take_vec_u8(const ::rust::Vec<uint8_t>& v);
 void c_take_vec_shared(const ::rust::Vec<Shared>& v);
 
+void c_try_return_void();
+size_t c_try_return_primitive();
+size_t c_fail_return_primitive();
+
 } // namespace tests

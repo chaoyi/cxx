@@ -47,6 +47,7 @@ pub(super) fn gen(namespace: Vec<String>, apis: &[Api], types: &Types, header: b
 
     if !header {
         out.begin_block("extern \"C\"");
+        write_exception_glue(out, apis);
         for api in apis {
             let (efn, write): (_, fn(_, _, _)) = match api {
                 Api::CxxFunction(efn) => (efn, write_cxx_function_shim),
@@ -99,62 +100,100 @@ fn write_includes(out: &mut OutFile, types: &Types) {
 }
 
 fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
+    let mut needs_rust_string = false;
+    let mut needs_rust_str = false;
     let mut needs_rust_box = false;
     let mut needs_rust_vec = false;
     for ty in types {
-        if let Type::RustBox(_) = ty {
-            needs_rust_box = true;
-            break;
-        } else if let Type::RustVec(_) = ty {
-            needs_rust_vec = true;
-            break;
+        match ty {
+            Type::RustBox(_) => {
+                out.include.type_traits = true;
+                needs_rust_box = true;
+            }
+            Type::RustVec(_) => {
+                out.include.type_traits = true;
+                needs_rust_vec = true;
+            }
+            Type::Str(_) => {
+                out.include.cstdint = true;
+                out.include.string = true;
+                needs_rust_str = true;
+            }
+            ty if ty == RustString => {
+                out.include.array = true;
+                out.include.cstdint = true;
+                out.include.string = true;
+                needs_rust_string = true;
+            }
+            _ => {}
         }
     }
 
+    let mut needs_rust_error = false;
+    let mut needs_unsafe_bitcopy = false;
     let mut needs_manually_drop = false;
     let mut needs_maybe_uninit = false;
+    let mut needs_trycatch = false;
     for api in apis {
-        if let Api::RustFunction(efn) = api {
-            for arg in &efn.args {
-                if arg.ty != RustString && types.needs_indirect_abi(&arg.ty) {
-                    needs_manually_drop = true;
-                    break;
+        match api {
+            Api::CxxFunction(efn) if !out.header => {
+                if efn.throws {
+                    needs_trycatch = true;
+                }
+                for arg in &efn.args {
+                    if arg.ty == RustString {
+                        needs_unsafe_bitcopy = true;
+                        break;
+                    }
                 }
             }
-            if let Some(ret) = &efn.ret {
-                if types.needs_indirect_abi(ret) {
-                    needs_maybe_uninit = true;
+            Api::RustFunction(efn) if !out.header => {
+                if efn.throws {
+                    out.include.exception = true;
+                    needs_rust_error = true;
+                }
+                for arg in &efn.args {
+                    if arg.ty != RustString && types.needs_indirect_abi(&arg.ty) {
+                        needs_manually_drop = true;
+                        break;
+                    }
+                }
+                if let Some(ret) = &efn.ret {
+                    if types.needs_indirect_abi(ret) {
+                        needs_maybe_uninit = true;
+                    }
                 }
             }
+            _ => {}
         }
     }
 
     out.begin_block("namespace rust");
     out.begin_block("inline namespace cxxbridge02");
 
-    if needs_rust_box || needs_rust_vec || needs_manually_drop || needs_maybe_uninit {
+    if needs_rust_string
+        || needs_rust_str
+        || needs_rust_box
+        || needs_rust_vec
+        || needs_rust_error
+        || needs_unsafe_bitcopy
+        || needs_manually_drop
+        || needs_maybe_uninit
+        || needs_trycatch
+    {
         writeln!(out, "// #include \"rust/cxx.h\"");
     }
 
-    if needs_rust_box {
-        out.next_section();
-        for line in include::get("CXXBRIDGE02_RUST_BOX").lines() {
-            if !line.trim_start().starts_with("//") {
-                writeln!(out, "{}", line);
-            }
-        }
-    }
-    if needs_rust_vec {
-        out.next_section();
-        for line in include::get("CXXBRIDGE02_RUST_VEC").lines() {
-            if !line.trim_start().starts_with("//") {
-                writeln!(out, "{}", line);
-            }
-        }
-    }
+    write_header_section(out, needs_rust_string, "CXXBRIDGE02_RUST_STRING");
+    write_header_section(out, needs_rust_str, "CXXBRIDGE02_RUST_STR");
+    write_header_section(out, needs_rust_box, "CXXBRIDGE02_RUST_BOX");
+    write_header_section(out, needs_rust_vec, "CXXBRIDGE02_RUST_VEC");
+    write_header_section(out, needs_rust_error, "CXXBRIDGE02_RUST_ERROR");
+    write_header_section(out, needs_unsafe_bitcopy, "CXXBRIDGE02_RUST_BITCOPY");
 
     if needs_manually_drop {
         out.next_section();
+        out.include.utility = true;
         writeln!(out, "template <typename T>");
         writeln!(out, "union ManuallyDrop {{");
         writeln!(out, "  T value;");
@@ -176,8 +215,33 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
         writeln!(out, "}};");
     }
 
+    if needs_trycatch {
+        out.next_section();
+        out.include.exception = true;
+        writeln!(out, "template <typename Try, typename Fail>");
+        writeln!(
+            out,
+            "static void trycatch(Try &&func, Fail &&fail) noexcept try {{",
+        );
+        writeln!(out, "  func();");
+        writeln!(out, "}} catch (const ::std::exception &e) {{");
+        writeln!(out, "  fail(e.what());");
+        writeln!(out, "}}");
+    }
+
     out.end_block("namespace cxxbridge02");
     out.end_block("namespace rust");
+}
+
+fn write_header_section(out: &mut OutFile, needed: bool, section: &str) {
+    if needed {
+        out.next_section();
+        for line in include::get(section).lines() {
+            if !line.trim_start().starts_with("//") {
+                writeln!(out, "{}", line);
+            }
+        }
+    }
 }
 
 fn write_struct(out: &mut OutFile, strct: &Struct) {
@@ -201,8 +265,32 @@ fn write_struct_using(out: &mut OutFile, ident: &Ident) {
     writeln!(out, "using {} = {};", ident, ident);
 }
 
+fn write_exception_glue(out: &mut OutFile, apis: &[Api]) {
+    let mut has_cxx_throws = false;
+    for api in apis {
+        if let Api::CxxFunction(efn) = api {
+            if efn.throws {
+                has_cxx_throws = true;
+                break;
+            }
+        }
+    }
+
+    if has_cxx_throws {
+        out.next_section();
+        write!(
+            out,
+            "const char *cxxbridge02$exception(const char *, size_t);",
+        );
+    }
+}
+
 fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
-    write_extern_return_type(out, &efn.ret, types);
+    if efn.throws {
+        write!(out, "::rust::Str::Repr ");
+    } else {
+        write_extern_return_type(out, &efn.ret, types);
+    }
     for name in out.namespace.clone() {
         write!(out, "{}$", name);
     }
@@ -236,6 +324,12 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     }
     writeln!(out, ") = {};", efn.ident);
     write!(out, "  ");
+    if efn.throws {
+        writeln!(out, "::rust::Str::Repr throw$;");
+        writeln!(out, "  ::rust::trycatch(");
+        writeln!(out, "      [&] {{");
+        write!(out, "        ");
+    }
     if indirect_return {
         write!(out, "new (return$) ");
         write_type(out, efn.ret.as_ref().unwrap());
@@ -266,6 +360,7 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
                 arg.ident,
             );
         } else if types.needs_indirect_abi(&arg.ty) {
+            out.include.utility = true;
             write!(out, "::std::move(*{})", arg.ident);
         } else {
             write!(out, "{}", arg.ident);
@@ -286,6 +381,19 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
         write!(out, ")");
     }
     writeln!(out, ";");
+    if efn.throws {
+        out.include.cstring = true;
+        writeln!(out, "        throw$.ptr = nullptr;");
+        writeln!(out, "      }},");
+        writeln!(out, "      [&](const char *catch$) noexcept {{");
+        writeln!(out, "        throw$.len = ::std::strlen(catch$);");
+        writeln!(
+            out,
+            "        throw$.ptr = cxxbridge02$exception(catch$, throw$.len);",
+        );
+        writeln!(out, "      }});");
+        writeln!(out, "  return throw$;");
+    }
     writeln!(out, "}}");
 }
 
@@ -338,6 +446,7 @@ fn write_rust_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
         writeln!(out, " {{");
         for arg in &efn.args {
             if arg.ty != RustString && types.needs_indirect_abi(&arg.ty) {
+                out.include.utility = true;
                 write!(out, "  ::rust::ManuallyDrop<");
                 write_type(out, &arg.ty);
                 writeln!(out, "> {}$(::std::move({0}));", arg.ident);
@@ -409,6 +518,7 @@ fn write_rust_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
             writeln!(out, "  }}");
         }
         if indirect_return {
+            out.include.utility = true;
             writeln!(out, "  return ::std::move(return$.value);");
         }
         writeln!(out, "}}");
@@ -685,6 +795,7 @@ fn write_rust_vec_impl(out: &mut OutFile, ty: &Type) {
 }
 
 fn write_unique_ptr(out: &mut OutFile, ty: &Type) {
+    out.include.utility = true;
     let inner = ty.to_typename(&out.namespace);
     let instance = ty.to_mangled(&out.namespace);
 

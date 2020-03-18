@@ -31,7 +31,7 @@ cc_library(
 genrule(
     name = "gen-header",
     srcs = ["ffi/lib.rs"],
-    outs = ["lib.rs"],
+    outs = ["lib.rs.h"],
     cmd = "$(location //:codegen) --header $< > $@",
     tools = ["//:codegen"],
 )
@@ -39,7 +39,7 @@ genrule(
 genrule(
     name = "gen-source",
     srcs = ["ffi/lib.rs"],
-    outs = ["gen.cc"],
+    outs = ["generated.cc"],
     cmd = "$(location //:codegen) $< > $@",
     tools = ["//:codegen"],
 )
