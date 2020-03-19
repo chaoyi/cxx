@@ -1,11 +1,13 @@
 use crate::syntax::{
-    attrs, error, Api, Atom, Doc, ExternFn, ExternType, Lang, Receiver, Ref, Struct, Ty1, Type, Var,
+    attrs, error, Api, Atom, Doc, ExternFn, ExternType, Lang, Receiver, Ref, Signature, Struct,
+    Ty1, Type, Var,
 };
 use proc_macro2::Ident;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{
     Abi, Error, Fields, FnArg, ForeignItem, ForeignItemFn, ForeignItemType, GenericArgument, Item,
     ItemForeignMod, ItemStruct, Pat, PathArguments, Result, ReturnType, Type as RustType,
+    TypeBareFn, TypePath, TypeReference,
 };
 
 pub fn parse_items(items: Vec<Item>) -> Result<Vec<Api>> {
@@ -110,7 +112,7 @@ fn parse_lang(abi: Abi) -> Result<Lang> {
         }
     };
     match name.value().as_str() {
-        "C" => Ok(Lang::Cxx),
+        "C" | "C++" => Ok(Lang::Cxx),
         "Rust" => Ok(Lang::Rust),
         _ => Err(Error::new_spanned(abi, "unrecognized ABI")),
     }
@@ -174,129 +176,179 @@ fn parse_extern_fn(foreign_fn: &ForeignItemFn, lang: Lang) -> Result<ExternFn> {
     }
 
     let mut throws = false;
-    let ret = match &foreign_fn.sig.output {
-        ReturnType::Default => None,
-        ReturnType::Type(_, ret) => {
-            let mut ret = ret.as_ref();
-            if let RustType::Path(ty) = ret {
-                let path = &ty.path;
-                if ty.qself.is_none() && path.leading_colon.is_none() && path.segments.len() == 1 {
-                    let segment = &path.segments[0];
-                    let ident = segment.ident.clone();
-                    if let PathArguments::AngleBracketed(generic) = &segment.arguments {
-                        if ident == "Result" && generic.args.len() == 1 {
-                            if let GenericArgument::Type(arg) = &generic.args[0] {
-                                ret = arg;
-                                throws = true;
-                            }
-                        }
-                    }
-                }
-            }
-            match parse_type(ret)? {
-                Type::Void(_) => None,
-                ty => Some(ty),
-            }
-        }
-    };
-
+    let ret = parse_return_type(&foreign_fn.sig.output, &mut throws)?;
     let doc = attrs::parse_doc(&foreign_fn.attrs)?;
     let fn_token = foreign_fn.sig.fn_token;
     let ident = foreign_fn.sig.ident.clone();
+    let mut foreign_fn2 = foreign_fn.clone();
+    foreign_fn2.attrs.clear();
+    let tokens = quote!(#foreign_fn2);
     let semi_token = foreign_fn.semi_token;
+
     Ok(ExternFn {
         lang,
         doc,
-        fn_token,
         ident,
-        receiver,
-        args,
-        ret,
-        throws,
+        sig: Signature {
+            fn_token,
+            receiver,
+            args,
+            ret,
+            throws,
+            tokens,
+        },
         semi_token,
     })
 }
 
 fn parse_type(ty: &RustType) -> Result<Type> {
     match ty {
-        RustType::Reference(ty) => {
-            let inner = parse_type(&ty.elem)?;
-            let which = match &inner {
-                Type::Ident(ident) if ident == "str" => {
-                    if ty.mutability.is_some() {
-                        return Err(Error::new_spanned(ty, "unsupported type"));
-                    } else {
-                        Type::Str
+        RustType::Reference(ty) => parse_type_reference(ty),
+        RustType::Path(ty) => parse_type_path(ty),
+        RustType::BareFn(ty) => parse_type_fn(ty),
+        RustType::Tuple(ty) if ty.elems.is_empty() => Ok(Type::Void(ty.paren_token.span)),
+        _ => Err(Error::new_spanned(ty, "unsupported type")),
+    }
+}
+
+fn parse_type_reference(ty: &TypeReference) -> Result<Type> {
+    let inner = parse_type(&ty.elem)?;
+    let which = match &inner {
+        Type::Ident(ident) if ident == "str" => {
+            if ty.mutability.is_some() {
+                return Err(Error::new_spanned(ty, "unsupported type"));
+            } else {
+                Type::Str
+            }
+        }
+        _ => Type::Ref,
+    };
+    Ok(which(Box::new(Ref {
+        ampersand: ty.and_token,
+        mutability: ty.mutability,
+        inner,
+    })))
+}
+
+fn parse_type_path(ty: &TypePath) -> Result<Type> {
+    let path = &ty.path;
+    if ty.qself.is_none() && path.leading_colon.is_none() && path.segments.len() == 1 {
+        let segment = &path.segments[0];
+        let ident = segment.ident.clone();
+        match &segment.arguments {
+            PathArguments::None => return Ok(Type::Ident(ident)),
+            PathArguments::AngleBracketed(generic) => {
+                if ident == "UniquePtr" && generic.args.len() == 1 {
+                    if let GenericArgument::Type(arg) = &generic.args[0] {
+                        let inner = parse_type(arg)?;
+                        return Ok(Type::UniquePtr(Box::new(Ty1 {
+                            name: ident,
+                            langle: generic.lt_token,
+                            inner,
+                            rangle: generic.gt_token,
+                        })));
+                    }
+                } else if ident == "Vector" && generic.args.len() == 1 {
+                    if let GenericArgument::Type(arg) = &generic.args[0] {
+                        let inner = parse_type(arg)?;
+                        return Ok(Type::Vector(Box::new(Ty1 {
+                            name: ident,
+                            langle: generic.lt_token,
+                            inner,
+                            rangle: generic.gt_token,
+                        })));
+                    }
+                } else if ident == "Box" && generic.args.len() == 1 {
+                    if let GenericArgument::Type(arg) = &generic.args[0] {
+                        let inner = parse_type(arg)?;
+                        return Ok(Type::RustBox(Box::new(Ty1 {
+                            name: ident,
+                            langle: generic.lt_token,
+                            inner,
+                            rangle: generic.gt_token,
+                        })));
+                    }
+                } else if ident == "Vec" && generic.args.len() == 1 {
+                    if let GenericArgument::Type(arg) = &generic.args[0] {
+                        let inner = parse_type(arg)?;
+                        return Ok(Type::RustVec(Box::new(Ty1 {
+                            name: ident,
+                            langle: generic.lt_token,
+                            inner,
+                            rangle: generic.gt_token,
+                        })));
                     }
                 }
-                _ => Type::Ref,
-            };
-            return Ok(which(Box::new(Ref {
-                ampersand: ty.and_token,
-                mutability: ty.mutability,
-                inner,
-            })));
+            }
+            PathArguments::Parenthesized(_) => {}
         }
-        RustType::Path(ty) => {
-            let path = &ty.path;
-            if ty.qself.is_none() && path.leading_colon.is_none() && path.segments.len() == 1 {
-                let segment = &path.segments[0];
-                let ident = segment.ident.clone();
-                match &segment.arguments {
-                    PathArguments::None => return Ok(Type::Ident(ident)),
-                    PathArguments::AngleBracketed(generic) => {
-                        if ident == "UniquePtr" && generic.args.len() == 1 {
-                            if let GenericArgument::Type(arg) = &generic.args[0] {
-                                let inner = parse_type(arg)?;
-                                return Ok(Type::UniquePtr(Box::new(Ty1 {
-                                    name: ident,
-                                    langle: generic.lt_token,
-                                    inner,
-                                    rangle: generic.gt_token,
-                                })));
-                            }
-                        } else if ident == "Vector" && generic.args.len() == 1 {
-                            if let GenericArgument::Type(arg) = &generic.args[0] {
-                                let inner = parse_type(arg)?;
-                                return Ok(Type::Vector(Box::new(Ty1 {
-                                    name: ident,
-                                    langle: generic.lt_token,
-                                    inner,
-                                    rangle: generic.gt_token,
-                                })));
-                            }
-                        } else if ident == "Box" && generic.args.len() == 1 {
-                            if let GenericArgument::Type(arg) = &generic.args[0] {
-                                let inner = parse_type(arg)?;
-                                return Ok(Type::RustBox(Box::new(Ty1 {
-                                    name: ident,
-                                    langle: generic.lt_token,
-                                    inner,
-                                    rangle: generic.gt_token,
-                                })));
-                            }
-                        } else if ident == "Vec" && generic.args.len() == 1 {
-                            if let GenericArgument::Type(arg) = &generic.args[0] {
-                                let inner = parse_type(arg)?;
-                                return Ok(Type::RustVec(Box::new(Ty1 {
-                                    name: ident,
-                                    langle: generic.lt_token,
-                                    inner,
-                                    rangle: generic.gt_token,
-                                })));
-                            }
-                        }
+    }
+    Err(Error::new_spanned(ty, "unsupported type"))
+}
+
+fn parse_type_fn(ty: &TypeBareFn) -> Result<Type> {
+    if ty.lifetimes.is_some() {
+        return Err(Error::new_spanned(
+            ty,
+            "function pointer with lifetime parameters is not supported yet",
+        ));
+    }
+    if ty.variadic.is_some() {
+        return Err(Error::new_spanned(
+            ty,
+            "variadic function pointer is not supported yet",
+        ));
+    }
+    let args = ty
+        .inputs
+        .iter()
+        .enumerate()
+        .map(|(i, arg)| {
+            let ty = parse_type(&arg.ty)?;
+            let ident = match &arg.name {
+                Some(ident) => ident.0.clone(),
+                None => format_ident!("_{}", i),
+            };
+            Ok(Var { ident, ty })
+        })
+        .collect::<Result<_>>()?;
+    let mut throws = false;
+    let ret = parse_return_type(&ty.output, &mut throws)?;
+    let tokens = quote!(#ty);
+    Ok(Type::Fn(Box::new(Signature {
+        fn_token: ty.fn_token,
+        receiver: None,
+        args,
+        ret,
+        throws,
+        tokens,
+    })))
+}
+
+fn parse_return_type(ty: &ReturnType, throws: &mut bool) -> Result<Option<Type>> {
+    let mut ret = match ty {
+        ReturnType::Default => return Ok(None),
+        ReturnType::Type(_, ret) => ret.as_ref(),
+    };
+    if let RustType::Path(ty) = ret {
+        let path = &ty.path;
+        if ty.qself.is_none() && path.leading_colon.is_none() && path.segments.len() == 1 {
+            let segment = &path.segments[0];
+            let ident = segment.ident.clone();
+            if let PathArguments::AngleBracketed(generic) = &segment.arguments {
+                if ident == "Result" && generic.args.len() == 1 {
+                    if let GenericArgument::Type(arg) = &generic.args[0] {
+                        ret = arg;
+                        *throws = true;
                     }
-                    PathArguments::Parenthesized(_) => {}
                 }
             }
         }
-        RustType::Tuple(ty) if ty.elems.is_empty() => {
-            return Ok(Type::Void(ty.paren_token.span));
-        }
-        _ => {}
     }
-    Err(Error::new_spanned(ty, "unsupported type"))
+    match parse_type(ret)? {
+        Type::Void(_) => Ok(None),
+        ty => Ok(Some(ty)),
+    }
 }
 
 fn check_reserved_name(ident: &Ident) -> Result<()> {

@@ -14,7 +14,7 @@ mod tokens;
 pub mod typename;
 pub mod types;
 
-use proc_macro2::{Ident, Span};
+use proc_macro2::{Ident, Span, TokenStream};
 use syn::{LitStr, Token};
 
 pub use self::atom::Atom;
@@ -48,15 +48,21 @@ pub struct Struct {
 pub struct ExternFn {
     pub lang: Lang,
     pub doc: Doc,
-    pub fn_token: Token![fn],
     pub ident: Ident,
+    pub sig: Signature,
+    pub semi_token: Token![;],
+}
+
+pub struct Signature {
+    pub fn_token: Token![fn],
     pub receiver: Option<Receiver>,
     pub args: Vec<Var>,
     pub ret: Option<Type>,
     pub throws: bool,
-    pub semi_token: Token![;],
+    pub tokens: TokenStream,
 }
 
+#[derive(Eq, PartialEq, Hash)]
 pub struct Var {
     pub ident: Ident,
     pub ty: Type,
@@ -75,6 +81,7 @@ pub enum Type {
     Ref(Box<Ref>),
     Str(Box<Ref>),
     Vector(Box<Ty1>),
+    Fn(Box<Signature>),
     Void(Span),
 }
 

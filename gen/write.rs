@@ -1,12 +1,18 @@
-use crate::gen::include;
 use crate::gen::out::OutFile;
+use crate::gen::{include, Opt};
 use crate::syntax::atom::Atom::{self, *};
 use crate::syntax::mangled::ToMangled;
 use crate::syntax::typename::ToTypename;
 use crate::syntax::{Api, ExternFn, Struct, Type, Types, Var};
 use proc_macro2::Ident;
 
-pub(super) fn gen(namespace: Vec<String>, apis: &[Api], types: &Types, header: bool) -> OutFile {
+pub(super) fn gen(
+    namespace: Vec<String>,
+    apis: &[Api],
+    types: &Types,
+    opt: Opt,
+    header: bool,
+) -> OutFile {
     let mut out_file = OutFile::new(namespace.clone(), header);
     let out = &mut out_file;
 
@@ -14,6 +20,7 @@ pub(super) fn gen(namespace: Vec<String>, apis: &[Api], types: &Types, header: b
         writeln!(out, "#pragma once");
     }
 
+    out.include.extend(opt.include);
     for api in apis {
         if let Api::Include(include) = api {
             out.include.insert(include.value());
@@ -215,21 +222,31 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
         writeln!(out, "}};");
     }
 
+    out.end_block("namespace cxxbridge02");
+
     if needs_trycatch {
-        out.next_section();
+        out.begin_block("namespace behavior");
         out.include.exception = true;
+        out.include.type_traits = true;
+        out.include.utility = true;
+        writeln!(out, "class missing {{}};");
+        writeln!(out, "missing trycatch(...);");
+        writeln!(out);
         writeln!(out, "template <typename Try, typename Fail>");
+        writeln!(out, "static typename std::enable_if<");
         writeln!(
             out,
-            "static void trycatch(Try &&func, Fail &&fail) noexcept try {{",
+            "    std::is_same<decltype(trycatch(std::declval<Try>(), std::declval<Fail>())),",
         );
+        writeln!(out, "                 missing>::value>::type");
+        writeln!(out, "trycatch(Try &&func, Fail &&fail) noexcept try {{");
         writeln!(out, "  func();");
         writeln!(out, "}} catch (const ::std::exception &e) {{");
         writeln!(out, "  fail(e.what());");
         writeln!(out, "}}");
+        out.end_block("namespace behavior");
     }
 
-    out.end_block("namespace cxxbridge02");
     out.end_block("namespace rust");
 }
 
@@ -278,7 +295,7 @@ fn write_exception_glue(out: &mut OutFile, apis: &[Api]) {
 
     if has_cxx_throws {
         out.next_section();
-        write!(
+        writeln!(
             out,
             "const char *cxxbridge02$exception(const char *, size_t);",
         );
@@ -326,7 +343,7 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     write!(out, "  ");
     if efn.throws {
         writeln!(out, "::rust::Str::Repr throw$;");
-        writeln!(out, "  ::rust::trycatch(");
+        writeln!(out, "  ::rust::behavior::trycatch(");
         writeln!(out, "      [&] {{");
         write!(out, "        ");
     }
@@ -608,6 +625,7 @@ fn write_type(out: &mut OutFile, ty: &Type) {
         Type::Str(_) => {
             write!(out, "::rust::Str");
         }
+        Type::Fn(_) => unimplemented!(),
         Type::Void(_) => unreachable!(),
     }
 }
@@ -622,6 +640,7 @@ fn write_type_space(out: &mut OutFile, ty: &Type) {
         | Type::Vector(_)
         | Type::RustVec(_) => write!(out, " "),
         Type::Ref(_) => {}
+        Type::Fn(_) => unimplemented!(),
         Type::Void(_) => unreachable!(),
     }
 }

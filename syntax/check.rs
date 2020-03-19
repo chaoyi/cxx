@@ -72,6 +72,7 @@ pub(crate) fn typecheck(apis: &[Api], types: &Types) -> Result<()> {
                     errors.push(unsupported_reference_type(ty));
                 }
             }
+            Type::Fn(_) => errors.push(unimplemented_fn_type(ty)),
             _ => {}
         }
     }
@@ -196,6 +197,7 @@ fn describe(ty: &Type, types: &Types) -> String {
         Type::Ref(_) => "reference".to_owned(),
         Type::Str(_) => "&str".to_owned(),
         Type::Vector(_) => "vector".to_owned(),
+        Type::Fn(_) => "function pointer".to_owned(),
         Type::Void(_) => "()".to_owned(),
     }
 }
@@ -259,4 +261,8 @@ fn return_by_value(ty: &Type, types: &Types) -> Error {
     let desc = describe(ty, types);
     let message = format!("returning {} by value is not supported", desc);
     Error::new_spanned(ty, message)
+}
+
+fn unimplemented_fn_type(ty: &Type) -> Error {
+    Error::new_spanned(ty, "function pointer support is not implemented yet")
 }
