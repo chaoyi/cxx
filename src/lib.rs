@@ -295,9 +295,9 @@
 //!
 //! # Builtin types
 //!
-//! In addition to all the primitive types (i32 ⟷ int32_t), the following common
-//! types may be used in the fields of shared structs and the arguments and
-//! returns of functions.
+//! In addition to all the primitive types (i32 &lt;=&gt; int32_t), the
+//! following common types may be used in the fields of shared structs and the
+//! arguments and returns of functions.
 //!
 //! <table>
 //! <tr><th>name in Rust</th><th>name in C++</th><th>restrictions</th></tr>
@@ -306,6 +306,7 @@
 //! <tr><td><a href="https://docs.rs/cxx/0.2/cxx/struct.CxxString.html">CxxString</a></td><td>std::string</td><td><sup><i>cannot be passed by value</i></sup></td></tr>
 //! <tr><td>Box&lt;T&gt;</td><td>rust::Box&lt;T&gt;</td><td><sup><i>cannot hold opaque C++ type</i></sup></td></tr>
 //! <tr><td><a href="https://docs.rs/cxx/0.2/cxx/struct.UniquePtr.html">UniquePtr&lt;T&gt;</a></td><td>std::unique_ptr&lt;T&gt;</td><td><sup><i>cannot hold opaque Rust type</i></sup></td></tr>
+//! <tr><td>Result&lt;T&gt;</td><td>error &lt;=&gt; exception</td><td><sup><i>allowed as return type only</i></sup></td></tr>
 //! </table>
 //!
 //! The C++ API of the `rust` namespace is defined by the *include/cxx.h* file
@@ -334,6 +335,7 @@
 #![doc(html_root_url = "https://docs.rs/cxx/0.1.2")]
 #![deny(improper_ctypes)]
 #![allow(
+    clippy::declare_interior_mutable_const,
     clippy::inherent_to_string,
     clippy::large_enum_variant,
     clippy::missing_safety_doc,
@@ -343,17 +345,21 @@
     clippy::or_fun_call,
     clippy::ptr_arg,
     clippy::toplevel_ref_arg,
-    clippy::transmute_ptr_to_ptr,
     clippy::useless_let_if_seq
 )]
 
 extern crate link_cplusplus;
 
+#[macro_use]
+mod assert;
+
 mod cxx_string;
 mod error;
+mod exception;
 mod gen;
 mod opaque;
 mod paths;
+mod result;
 mod rust_str;
 mod rust_string;
 mod rust_vec;
@@ -363,6 +369,7 @@ mod unwind;
 mod vector;
 
 pub use crate::cxx_string::CxxString;
+pub use crate::exception::Exception;
 pub use crate::rust_vec::RustVec;
 pub use crate::unique_ptr::UniquePtr;
 pub use crate::vector::RealVector;
@@ -373,6 +380,7 @@ pub use cxxbridge_macro::bridge;
 #[doc(hidden)]
 pub mod private {
     pub use crate::opaque::Opaque;
+    pub use crate::result::{r#try, Result};
     pub use crate::rust_str::RustStr;
     pub use crate::rust_string::RustString;
     pub use crate::unique_ptr::UniquePtrTarget;
@@ -381,6 +389,7 @@ pub mod private {
 }
 
 use crate::error::Result;
+use crate::gen::Opt;
 use anyhow::anyhow;
 use std::fs;
 use std::io::{self, Write};
@@ -463,13 +472,13 @@ impl Build {
 }
 
 fn try_generate_bridge(rust_source_file: &Path) -> Result<cc::Build> {
-    let header = gen::do_generate_header(rust_source_file);
+    let header = gen::do_generate_header(rust_source_file, Opt::default());
     let header_path = paths::out_with_extension(rust_source_file, ".h")?;
     fs::create_dir_all(header_path.parent().unwrap())?;
     fs::write(&header_path, header)?;
     paths::symlink_header(&header_path, rust_source_file);
 
-    let bridge = gen::do_generate_bridge(rust_source_file);
+    let bridge = gen::do_generate_bridge(rust_source_file, Opt::default());
     let bridge_path = paths::out_with_extension(rust_source_file, ".cc")?;
     fs::write(&bridge_path, bridge)?;
     let mut build = paths::cc_build();

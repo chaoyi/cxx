@@ -1,6 +1,8 @@
 #include <numeric>
 #include "tests/ffi/tests.h"
-#include "tests/ffi/lib.rs"
+#include "tests/ffi/lib.rs.h"
+#include <cstring>
+#include <stdexcept>
 
 extern "C" void cxx_test_suite_set_correct() noexcept;
 extern "C" tests::R *cxx_test_suite_get_box() noexcept;
@@ -138,6 +140,12 @@ void c_take_vec_shared(const ::rust::Vec<Shared>& v) {
   }
 }
 
+void c_try_return_void() {}
+
+size_t c_try_return_primitive() { return 2020; }
+
+size_t c_fail_return_primitive() { throw std::logic_error("logic error"); }
+
 extern "C" C *cxx_test_suite_get_unique_ptr() noexcept {
   return std::unique_ptr<C>(new C{2020}).release();
 }
@@ -173,6 +181,14 @@ extern "C" const char *cxx_run_test() noexcept {
   r_take_rust_string(rust::String("2020"));
   r_take_unique_ptr_string(
       std::unique_ptr<std::string>(new std::string("2020")));
+
+  ASSERT(r_try_return_primitive() == 2020);
+  try {
+    r_fail_return_primitive();
+    ASSERT(false);
+  } catch (const rust::Error &e) {
+    ASSERT(std::strcmp(e.what(), "rust error") == 0);
+  }
 
   cxx_test_suite_set_correct();
   return nullptr;

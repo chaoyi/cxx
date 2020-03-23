@@ -186,9 +186,13 @@ fn expand_cxx_function_decl(namespace: &Namespace, efn: &ExternFn, types: &Types
             quote!(#ident: #ty)
         }
     });
-    let ret = expand_extern_return_type(&efn.ret, types);
+    let ret = if efn.throws {
+        quote!(-> ::cxx::private::Result)
+    } else {
+        expand_extern_return_type(&efn.ret, types)
+    };
     let mut outparam = None;
-    if indirect_return(&efn.ret, types) {
+    if indirect_return(efn, types) {
         let ret = expand_extern_type(efn.ret.as_ref().unwrap());
         outparam = Some(quote!(__return: *mut #ret));
     }
@@ -205,8 +209,16 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
     let doc = &efn.doc;
     let decl = expand_cxx_function_decl(namespace, efn, types);
     let args = &efn.args;
-    let ret = expand_return_type(&efn.ret);
-    let indirect_return = indirect_return(&efn.ret, types);
+    let ret = if efn.throws {
+        let ok = match &efn.ret {
+            Some(ret) => quote!(#ret),
+            None => quote!(()),
+        };
+        quote!(-> ::std::result::Result<#ok, ::cxx::Exception>)
+    } else {
+        expand_return_type(&efn.ret)
+    };
+    let indirect_return = indirect_return(efn, types);
     let vars = efn.args.iter().map(|arg| {
         let var = &arg.ident;
         match &arg.ty {
@@ -246,10 +258,21 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
         let ret = expand_extern_type(efn.ret.as_ref().unwrap());
         setup.extend(quote! {
             let mut __return = ::std::mem::MaybeUninit::<#ret>::uninit();
-            #local_name(#(#vars,)* __return.as_mut_ptr());
         });
+        if efn.throws {
+            setup.extend(quote! {
+                #local_name(#(#vars,)* __return.as_mut_ptr()).exception()?;
+            });
+            quote!(::std::result::Result::Ok(__return.assume_init()))
+        } else {
+            setup.extend(quote! {
+                #local_name(#(#vars,)* __return.as_mut_ptr());
+            });
+            quote!(__return.assume_init())
+        }
+    } else if efn.throws {
         quote! {
-            __return.assume_init()
+            #local_name(#(#vars),*).exception()
         }
     } else {
         quote! {
@@ -321,9 +344,7 @@ fn expand_rust_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Type
         }
     });
     let mut outparam = None;
-    let call = quote! {
-        ::cxx::private::catch_unwind(__fn, move || super::#ident(#(#vars),*))
-    };
+    let call = quote!(super::#ident(#(#vars),*));
     let mut expr = efn
         .ret
         .as_ref()
@@ -343,12 +364,26 @@ fn expand_rust_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Type
             _ => None,
         })
         .unwrap_or(call);
-    if indirect_return(&efn.ret, types) {
+    let indirect_return = indirect_return(efn, types);
+    if indirect_return {
         let ret = expand_extern_type(efn.ret.as_ref().unwrap());
         outparam = Some(quote!(__return: *mut #ret));
+    }
+    if efn.throws {
+        let out = match efn.ret {
+            Some(_) => quote!(__return),
+            None => quote!(&mut ()),
+        };
+        expr = quote!(::cxx::private::r#try(#out, #expr));
+    } else if indirect_return {
         expr = quote!(::std::ptr::write(__return, #expr));
     }
-    let ret = expand_extern_return_type(&efn.ret, types);
+    expr = quote!(::cxx::private::catch_unwind(__fn, move || #expr));
+    let ret = if efn.throws {
+        quote!(-> ::cxx::private::Result)
+    } else {
+        expand_extern_return_type(&efn.ret, types)
+    };
     let link_name = format!("{}cxxbridge02${}", namespace, ident);
     let local_name = format_ident!("__{}", ident);
     let catch_unwind_label = format!("::{}", ident);
@@ -535,9 +570,10 @@ fn expand_return_type(ret: &Option<Type>) -> TokenStream {
     }
 }
 
-fn indirect_return(ret: &Option<Type>, types: &Types) -> bool {
-    ret.as_ref()
-        .map_or(false, |ret| types.needs_indirect_abi(ret))
+fn indirect_return(efn: &ExternFn, types: &Types) -> bool {
+    efn.ret
+        .as_ref()
+        .map_or(false, |ret| efn.throws || types.needs_indirect_abi(ret))
 }
 
 fn expand_extern_type(ty: &Type) -> TokenStream {

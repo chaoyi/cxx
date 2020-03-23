@@ -1,16 +1,20 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include <exception>
 #include <iosfwd>
 #include <string>
 #include <vector>
 #include <type_traits>
+#include <utility>
 
 namespace rust {
 inline namespace cxxbridge02 {
 
 struct unsafe_bitcopy_t;
 
+#ifndef CXXBRIDGE02_RUST_STRING
+#define CXXBRIDGE02_RUST_STRING
 class String final {
 public:
   String() noexcept;
@@ -38,7 +42,10 @@ private:
   // Size and alignment statically verified by rust_string.rs.
   std::array<uintptr_t, 3> repr;
 };
+#endif // CXXBRIDGE02_RUST_STRING
 
+#ifndef CXXBRIDGE02_RUST_STR
+#define CXXBRIDGE02_RUST_STR
 class Str final {
 public:
   Str() noexcept;
@@ -71,6 +78,7 @@ public:
 private:
   Repr repr;
 };
+#endif // CXXBRIDGE02_RUST_STR
 
 #ifndef CXXBRIDGE02_RUST_VEC
 #define CXXBRIDGE02_RUST_VEC
@@ -160,6 +168,21 @@ private:
 };
 #endif // CXXBRIDGE02_RUST_BOX
 
+#ifndef CXXBRIDGE02_RUST_ERROR
+#define CXXBRIDGE02_RUST_ERROR
+class Error final : std::exception {
+public:
+  Error(const Error &);
+  Error(Error &&) noexcept;
+  Error(Str::Repr) noexcept;
+  ~Error() noexcept;
+  const char *what() const noexcept override;
+
+private:
+  Str::Repr msg;
+};
+#endif // CXXBRIDGE02_RUST_ERROR
+
 std::ostream &operator<<(std::ostream &, const String &);
 std::ostream &operator<<(std::ostream &, const Str &);
 
@@ -167,11 +190,15 @@ std::ostream &operator<<(std::ostream &, const Str &);
 using string = String;
 using str = Str;
 template <class T> using box = Box<T>;
+using error = Error;
 
+#ifndef CXXBRIDGE02_RUST_BITCOPY
+#define CXXBRIDGE02_RUST_BITCOPY
 struct unsafe_bitcopy_t {
   explicit unsafe_bitcopy_t() = default;
 };
 constexpr unsafe_bitcopy_t unsafe_bitcopy{};
+#endif // CXXBRIDGE02_RUST_BITCOPY
 
 } // namespace cxxbridge02
 } // namespace rust

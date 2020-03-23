@@ -1,5 +1,5 @@
 use crate::syntax::atom::Atom::*;
-use crate::syntax::{Derive, ExternFn, Ref, Ty1, Type, Var};
+use crate::syntax::{Derive, ExternFn, Ref, Signature, Ty1, Type, Var};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote_spanned, ToTokens};
 use syn::Token;
@@ -18,6 +18,7 @@ impl ToTokens for Type {
                 ty.to_tokens(tokens)
             }
             Type::Ref(r) | Type::Str(r) => r.to_tokens(tokens),
+            Type::Fn(f) => f.to_tokens(tokens),
             Type::Void(span) => tokens.extend(quote_spanned!(*span=> ())),
         }
     }
@@ -65,8 +66,12 @@ impl ToTokens for Derive {
 
 impl ToTokens for ExternFn {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        self.fn_token.to_tokens(tokens);
-        self.ident.to_tokens(tokens);
-        self.semi_token.to_tokens(tokens);
+        self.sig.tokens.to_tokens(tokens);
+    }
+}
+
+impl ToTokens for Signature {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.tokens.to_tokens(tokens);
     }
 }
