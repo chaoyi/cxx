@@ -53,6 +53,8 @@ impl<T: VectorTarget<T>> RealVector<T> {
     }
 }
 
+unsafe impl<T> Send for RealVector<T> where T: Send + VectorTarget<T> {}
+
 pub struct VectorIntoIterator<'a, T> {
     v: &'a RealVector<T>,
     index: usize,

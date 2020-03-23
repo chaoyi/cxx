@@ -49,6 +49,7 @@ pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
                 self.0.into_iter()
             }
         }
+        unsafe impl<T> Send for Vector<T> where T: Send + cxx::private::VectorTarget<T> {}
     });
 
     for api in &apis {
