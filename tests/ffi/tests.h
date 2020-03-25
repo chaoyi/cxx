@@ -46,5 +46,7 @@ void c_take_vec_shared(const ::rust::Vec<Shared>& v);
 void c_try_return_void();
 size_t c_try_return_primitive();
 size_t c_fail_return_primitive();
+std::unique_ptr<std::string> c_try_return_string();
+std::unique_ptr<std::string> c_fail_return_string();
 
 } // namespace tests
