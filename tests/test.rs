@@ -69,7 +69,10 @@ fn test_c_return() {
             .map(|o| o.z)
             .sum()
     );
+}
 
+#[test]
+fn test_c_try_return() {
     assert_eq!((), ffi::c_try_return_void().unwrap());
     assert_eq!(2020, ffi::c_try_return_primitive().unwrap());
     assert_eq!(
@@ -87,6 +90,17 @@ fn test_c_return() {
     assert_eq!(
         "logic error getting string",
         ffi::c_fail_return_string().unwrap_err().what(),
+    );
+    assert_eq!(2020, *ffi::c_try_return_box().unwrap());
+    assert_eq!("2020", *ffi::c_try_return_ref(&"2020".to_owned()).unwrap());
+    assert_eq!("2020", ffi::c_try_return_str("2020").unwrap());
+    assert_eq!("2020", ffi::c_try_return_rust_string().unwrap());
+    assert_eq!(
+        "2020",
+        ffi::c_try_return_unique_ptr_string()
+            .unwrap()
+            .as_ref()
+            .unwrap()
     );
 }
 

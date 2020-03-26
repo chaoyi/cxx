@@ -307,7 +307,7 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     if efn.throws {
         write!(out, "::rust::Str::Repr ");
     } else {
-        write_extern_return_type(out, &efn.ret, types);
+        write_extern_return_type_space(out, &efn.ret, types);
     }
     for name in out.namespace.clone() {
         write!(out, "{}$", name);
@@ -327,7 +327,7 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
         if !efn.args.is_empty() {
             write!(out, ", ");
         }
-        write_return_type(out, &efn.ret);
+        write_indirect_return_type_space(out, efn.ret.as_ref().unwrap());
         write!(out, "*return$");
     }
     writeln!(out, ") noexcept {{");
@@ -350,15 +350,15 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     }
     if indirect_return {
         write!(out, "new (return$) ");
-        write_type(out, efn.ret.as_ref().unwrap());
+        write_indirect_return_type(out, efn.ret.as_ref().unwrap());
         write!(out, "(");
-    } else if let Some(ret) = &efn.ret {
+    } else if efn.ret.is_some() {
         write!(out, "return ");
-        match ret {
-            Type::Ref(_) => write!(out, "&"),
-            Type::Str(_) => write!(out, "::rust::Str::Repr("),
-            _ => {}
-        }
+    }
+    match &efn.ret {
+        Some(Type::Ref(_)) => write!(out, "&"),
+        Some(Type::Str(_)) if !indirect_return => write!(out, "::rust::Str::Repr("),
+        _ => {}
     }
     write!(out, "{}$(", efn.ident);
     for (i, arg) in efn.args.iter().enumerate() {
@@ -392,7 +392,7 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
             out,
             " /* Use RVO to convert to r-value and move construct */"
         ),
-        Some(Type::Str(_)) => write!(out, ")"),
+        Some(Type::Str(_)) if !indirect_return => write!(out, ")"),
         _ => {}
     }
     if indirect_return {
@@ -419,7 +419,7 @@ fn write_rust_function_decl(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     if efn.throws {
         write!(out, "::rust::Str::Repr ");
     } else {
-        write_extern_return_type(out, &efn.ret, types);
+        write_extern_return_type_space(out, &efn.ret, types);
     }
     for name in out.namespace.clone() {
         write!(out, "{}$", name);
@@ -556,7 +556,34 @@ fn indirect_return(efn: &ExternFn, types: &Types) -> bool {
         .map_or(false, |ret| efn.throws || types.needs_indirect_abi(ret))
 }
 
-fn write_extern_return_type(out: &mut OutFile, ty: &Option<Type>, types: &Types) {
+fn write_indirect_return_type(out: &mut OutFile, ty: &Type) {
+    match ty {
+        Type::RustBox(ty) | Type::UniquePtr(ty) => {
+            write_type_space(out, &ty.inner);
+            write!(out, "*");
+        }
+        Type::Ref(ty) => {
+            if ty.mutability.is_none() {
+                write!(out, "const ");
+            }
+            write_type(out, &ty.inner);
+            write!(out, " *");
+        }
+        Type::Str(_) => write!(out, "::rust::Str::Repr"),
+        _ => write_type(out, ty),
+    }
+}
+
+fn write_indirect_return_type_space(out: &mut OutFile, ty: &Type) {
+    write_indirect_return_type(out, ty);
+    match ty {
+        Type::RustBox(_) | Type::UniquePtr(_) | Type::Ref(_) => {}
+        Type::Str(_) => write!(out, " "),
+        _ => write_space_after_type(out, ty),
+    }
+}
+
+fn write_extern_return_type_space(out: &mut OutFile, ty: &Option<Type>, types: &Types) {
     match ty {
         Some(Type::RustBox(ty)) | Some(Type::UniquePtr(ty)) => {
             write_type_space(out, &ty.inner);
@@ -633,6 +660,10 @@ fn write_type(out: &mut OutFile, ty: &Type) {
 
 fn write_type_space(out: &mut OutFile, ty: &Type) {
     write_type(out, ty);
+    write_space_after_type(out, ty);
+}
+
+fn write_space_after_type(out: &mut OutFile, ty: &Type) {
     match ty {
         Type::Ident(_)
         | Type::RustBox(_)

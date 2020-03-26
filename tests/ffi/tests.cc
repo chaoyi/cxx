@@ -154,6 +154,18 @@ std::unique_ptr<std::string> c_fail_return_string() {
   throw std::logic_error("logic error getting string"); 
 }
 
+rust::Box<R> c_try_return_box() { return c_return_box(); }
+
+const rust::String &c_try_return_ref(const rust::String &s) { return s; }
+
+rust::Str c_try_return_str(rust::Str s) { return s; }
+
+rust::String c_try_return_rust_string() { return c_return_rust_string(); }
+
+std::unique_ptr<std::string> c_try_return_unique_ptr_string() {
+  return c_return_unique_ptr_string();
+}
+
 extern "C" C *cxx_test_suite_get_unique_ptr() noexcept {
   return std::unique_ptr<C>(new C{2020}).release();
 }
