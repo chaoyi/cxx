@@ -98,10 +98,15 @@ pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
                 }
             } else if let Type::Vector(_) = &ptr.inner {
                 // Generate code for unique_ptr<vector<T>> if T is not an atom
-                // or if T is a u8.
-                // Code for atoms is already generated
-                if Atom::from(ident).is_none() || Atom::from(ident) == Some(Atom::U8) {
-                    expanded.extend(expand_unique_ptr(namespace, &ptr.inner));
+                // or if T is a primitive.
+                // Code for primitives is already generated
+                match Atom::from(ident) {
+                    None => expanded.extend(expand_unique_ptr(namespace, &ptr.inner)),
+                    Some(atom) => {
+                        if atom.is_valid_vector_target() {
+                            expanded.extend(expand_unique_ptr(namespace, &ptr.inner));
+                        }
+                    }
                 }
             }
         } else if let Type::Vector(ptr) = ty {

@@ -48,6 +48,15 @@ std::unique_ptr<std::vector<uint8_t>> c_return_unique_ptr_vector_u8() {
   return retval;
 }
 
+std::unique_ptr<std::vector<double>> c_return_unique_ptr_vector_f64() {
+  auto retval = std::unique_ptr<std::vector<double>>(new std::vector<double>());
+  retval->push_back(86.0);
+  retval->push_back(75.0);
+  retval->push_back(30.0);
+  retval->push_back(9.5);
+  return retval;
+}
+
 std::unique_ptr<std::vector<Shared>> c_return_unique_ptr_vector_shared() {
   auto retval = std::unique_ptr<std::vector<Shared>>(new std::vector<Shared>());
   retval->push_back(Shared{1010});
@@ -110,6 +119,12 @@ void c_take_unique_ptr_string(std::unique_ptr<std::string> s) {
 }
 
 void c_take_unique_ptr_vector_u8(std::unique_ptr<std::vector<uint8_t>> v) {
+  if (v->size() == 4) {
+    cxx_test_suite_set_correct();
+  }
+}
+
+void c_take_unique_ptr_vector_f64(std::unique_ptr<std::vector<double>> v) {
   if (v->size() == 4) {
     cxx_test_suite_set_correct();
   }

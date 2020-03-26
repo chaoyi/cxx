@@ -88,7 +88,7 @@ fn check_type_box(cx: &mut Check, ptr: &Ty1) {
 fn check_type_vec(cx: &mut Check, ptr: &Ty1) {
     // Vec can contain either user-defined type or u8
     if let Type::Ident(ident) = &ptr.inner {
-        if Atom::from(ident) == Some(Atom::U8) {
+        if Atom::from(ident).map(|a| a.is_valid_vector_target()) == Some(true) {
             return;
         } else if cx.types.cxx.contains(ident) {
             cx.error(ptr, error::VEC_CXX_TYPE.msg);
@@ -124,8 +124,12 @@ fn check_type_vector(cx: &mut Check, ptr: &Ty1) {
         }
 
         match Atom::from(ident) {
-            None | Some(U8) => return, // Either user-defined type or u8 for now
-            _ => {}
+            None => return,
+            Some(atom) => {
+                if atom.is_valid_vector_target() {
+                    return;
+                }
+            }
         }
     }
     cx.error(ptr, "unsupported vector target type");

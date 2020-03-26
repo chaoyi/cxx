@@ -54,6 +54,14 @@ fn test_c_return() {
             .sum()
     );
     assert_eq!(
+        200.5_f64,
+        ffi::c_return_unique_ptr_vector_f64()
+            .as_ref()
+            .unwrap()
+            .into_iter()
+            .sum()
+    );
+    assert_eq!(
         2,
         ffi::c_return_unique_ptr_vector_shared()
             .as_ref()
@@ -120,6 +128,9 @@ fn test_c_take() {
     ));
     check!(ffi::c_take_unique_ptr_vector_u8(
         ffi::c_return_unique_ptr_vector_u8()
+    ));
+    check!(ffi::c_take_unique_ptr_vector_f64(
+        ffi::c_return_unique_ptr_vector_f64()
     ));
     check!(ffi::c_take_unique_ptr_vector_shared(
         ffi::c_return_unique_ptr_vector_shared()

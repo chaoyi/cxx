@@ -683,9 +683,8 @@ fn write_generic_instantiations(out: &mut OutFile, types: &Types) {
     }
 
     fn allow_vector(ident: &Ident) -> bool {
-        // For now, allow either u8 or user type
         if let Some(ty) = Atom::from(ident) {
-            if ty == Atom::U8 {
+            if ty.is_valid_vector_target() {
                 true
             } else {
                 false
