@@ -578,6 +578,49 @@ fn expand_vector(namespace: &Namespace, ty: &Type) -> TokenStream {
     }
 }
 
+pub fn expand_vector_builtin(ident: Ident) -> TokenStream {
+    let ty = Type::Ident(ident);
+    let inner = &ty;
+    let namespace = Namespace { segments: vec![] };
+    let mangled = ty.to_mangled(&namespace.segments) + "$";
+    let prefix = format!("cxxbridge02$std$vector${}", mangled);
+    let link_length = format!("{}length", prefix);
+    let link_get_unchecked = format!("{}get_unchecked", prefix);
+    let link_push_back = format!("{}push_back", prefix);
+
+    quote! {
+        impl VectorTarget<#inner> for #inner {
+            fn get_unchecked(v: &RealVector<#inner>, pos: usize) -> &#inner {
+                extern "C" {
+                    #[link_name = #link_get_unchecked]
+                    fn __get_unchecked(_: &RealVector<#inner>, _: usize) -> &#inner;
+                }
+                unsafe {
+                    __get_unchecked(v, pos)
+                }
+            }
+            fn vector_length(v: &RealVector<#inner>) -> usize {
+                unsafe {
+                    extern "C" {
+                        #[link_name = #link_length]
+                        fn __vector_length(_: &RealVector<#inner>) -> usize;
+                    }
+                    __vector_length(v)
+                }
+            }
+            fn push_back(v: &RealVector<#inner>, item: &#inner) {
+                unsafe {
+                    extern "C" {
+                        #[link_name = #link_push_back]
+                        fn __push_back(_: &RealVector<#inner>, _: &#inner) -> usize;
+                    }
+                    __push_back(v, item);
+                }
+            }
+        }
+    }
+}
+
 fn expand_return_type(ret: &Option<Type>) -> TokenStream {
     match ret {
         Some(ret) => quote!(-> #ret),

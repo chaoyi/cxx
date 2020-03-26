@@ -77,33 +77,15 @@ impl<'a, T: VectorTarget<T>> Iterator for VectorIntoIterator<'a, T> {
     }
 }
 
-// Attempted to put this in expand_vector() but ran into trait impl problems
-impl VectorTarget<u8> for u8 {
-    fn get_unchecked(v: &RealVector<u8>, pos: usize) -> &u8 {
-        unsafe {
-            extern "C" {
-                #[link_name = "cxxbridge02$std$vector$u8$get_unchecked"]
-                fn __get_unchecked(_: &RealVector<u8>, _: usize) -> &u8;
-            }
-            __get_unchecked(v, pos)
-        }
-    }
-    fn vector_length(v: &RealVector<u8>) -> usize {
-        unsafe {
-            extern "C" {
-                #[link_name = "cxxbridge02$std$vector$u8$length"]
-                fn __vector_length(_: &RealVector<u8>) -> usize;
-            }
-            __vector_length(v)
-        }
-    }
-    fn push_back(v: &RealVector<u8>, item: &u8) {
-        unsafe {
-            extern "C" {
-                #[link_name = "cxxbridge02$std$vector$u8$push_back"]
-                fn __push_back(_: &RealVector<u8>, _: &u8) -> usize;
-            }
-            __push_back(v, item);
-        }
-    }
-}
+cxxbridge_macro::vector_builtin!(u8);
+cxxbridge_macro::vector_builtin!(u16);
+cxxbridge_macro::vector_builtin!(u32);
+cxxbridge_macro::vector_builtin!(u64);
+cxxbridge_macro::vector_builtin!(usize);
+cxxbridge_macro::vector_builtin!(i8);
+cxxbridge_macro::vector_builtin!(i16);
+cxxbridge_macro::vector_builtin!(i32);
+cxxbridge_macro::vector_builtin!(i64);
+cxxbridge_macro::vector_builtin!(isize);
+cxxbridge_macro::vector_builtin!(f32);
+cxxbridge_macro::vector_builtin!(f64);
