@@ -88,7 +88,6 @@ fn check_type_box(cx: &mut Check, ptr: &Ty1) {
 fn check_type_vec(cx: &mut Check, ptr: &Ty1) {
     // Vec can contain either user-defined type or u8
     if let Type::Ident(ident) = &ptr.inner {
-        println!("{:?}", ident);
         if Atom::from(ident) == Some(Atom::U8) {
             return;
         } else if cx.types.cxx.contains(ident) {
