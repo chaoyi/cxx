@@ -155,6 +155,10 @@ void c_take_vec_shared(const ::rust::Vec<Shared>& v) {
   }
 }
 
+void c_take_callback(rust::Fn<size_t(rust::String)> callback) {
+  callback("2020");
+}
+
 void c_try_return_void() {}
 
 size_t c_try_return_primitive() { return 2020; }

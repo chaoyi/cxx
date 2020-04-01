@@ -1,3 +1,7 @@
+//! **[https://github.com/dtolnay/cxx]**
+//!
+//! <br>
+//!
 //! This library provides a **safe** mechanism for calling C++ code from Rust
 //! and Rust code from C++, not subject to the many ways that things can go
 //! wrong when using bindgen or cbindgen to generate unsafe C-style bindings.
@@ -306,6 +310,7 @@
 //! <tr><td><a href="https://docs.rs/cxx/0.2/cxx/struct.CxxString.html">CxxString</a></td><td>std::string</td><td><sup><i>cannot be passed by value</i></sup></td></tr>
 //! <tr><td>Box&lt;T&gt;</td><td>rust::Box&lt;T&gt;</td><td><sup><i>cannot hold opaque C++ type</i></sup></td></tr>
 //! <tr><td><a href="https://docs.rs/cxx/0.2/cxx/struct.UniquePtr.html">UniquePtr&lt;T&gt;</a></td><td>std::unique_ptr&lt;T&gt;</td><td><sup><i>cannot hold opaque Rust type</i></sup></td></tr>
+//! <tr><td>fn(T, U) -&gt; V</td><td>rust::Fn&lt;V(T, U)&gt;</td><td><sup><i>only passing from Rust to C++ is implemented so far</i></sup></td></tr>
 //! <tr><td>Result&lt;T&gt;</td><td>error &lt;=&gt; exception</td><td><sup><i>allowed as return type only</i></sup></td></tr>
 //! </table>
 //!
@@ -332,7 +337,7 @@
 //!
 //! [https://github.com/dtolnay/cxx]: https://github.com/dtolnay/cxx
 
-#![doc(html_root_url = "https://docs.rs/cxx/0.1.2")]
+#![doc(html_root_url = "https://docs.rs/cxx/0.2.1")]
 #![deny(improper_ctypes)]
 #![allow(
     clippy::declare_interior_mutable_const,
@@ -356,6 +361,7 @@ mod assert;
 mod cxx_string;
 mod error;
 mod exception;
+mod function;
 mod gen;
 mod opaque;
 mod paths;
@@ -379,6 +385,7 @@ pub use cxxbridge_macro::bridge;
 // Not public API.
 #[doc(hidden)]
 pub mod private {
+    pub use crate::function::FatFunction;
     pub use crate::opaque::Opaque;
     pub use crate::result::{r#try, Result};
     pub use crate::rust_str::RustStr;

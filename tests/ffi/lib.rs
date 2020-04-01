@@ -41,6 +41,7 @@ pub mod ffi {
 
         fn c_take_vec_u8(v: &Vec<u8>);
         fn c_take_vec_shared(v: &Vec<Shared>);
+        fn c_take_callback(callback: fn(String) -> usize);
 
         fn c_try_return_void() -> Result<()>;
         fn c_try_return_primitive() -> Result<usize>;

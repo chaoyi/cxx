@@ -3,11 +3,12 @@
 
 mod error;
 pub(super) mod include;
+mod namespace;
 pub(super) mod out;
 mod write;
 
 use self::error::format_err;
-use self::out::OutFile;
+use self::namespace::Namespace;
 use crate::syntax::{self, check, ident, Types};
 use quote::quote;
 use std::fs;
@@ -32,7 +33,7 @@ pub(super) enum Error {
 }
 
 struct Input {
-    namespace: Vec<String>,
+    namespace: Namespace,
     module: Vec<Item>,
 }
 
@@ -42,17 +43,17 @@ pub(super) struct Opt {
     pub include: Vec<String>,
 }
 
-pub(super) fn do_generate_bridge(path: &Path, opt: Opt) -> OutFile {
+pub(super) fn do_generate_bridge(path: &Path, opt: Opt) -> Vec<u8> {
     let header = false;
     generate(path, opt, header)
 }
 
-pub(super) fn do_generate_header(path: &Path, opt: Opt) -> OutFile {
+pub(super) fn do_generate_header(path: &Path, opt: Opt) -> Vec<u8> {
     let header = true;
     generate(path, opt, header)
 }
 
-fn generate(path: &Path, opt: Opt, header: bool) -> OutFile {
+fn generate(path: &Path, opt: Opt, header: bool) -> Vec<u8> {
     let source = match fs::read_to_string(path) {
         Ok(source) => source,
         Err(err) => format_err(path, "", Error::Io(err)),
@@ -66,7 +67,7 @@ fn generate(path: &Path, opt: Opt, header: bool) -> OutFile {
         let out = write::gen(bridge.namespace, &apis, &types, opt, header);
         Ok(out)
     })() {
-        Ok(out) => out,
+        Ok(out) => out.content(),
         Err(err) => format_err(path, &source, err),
     }
 }
@@ -86,10 +87,9 @@ fn find_bridge_mod(syntax: File) -> Result<Input> {
                             )));
                         }
                     };
-                    return Ok(Input {
-                        namespace: parse_args(attr)?,
-                        module,
-                    });
+                    let namespace_segments = parse_args(attr)?;
+                    let namespace = Namespace::new(namespace_segments);
+                    return Ok(Input { namespace, module });
                 }
             }
         }

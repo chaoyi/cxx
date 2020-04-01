@@ -1,13 +1,14 @@
+use crate::gen::namespace::Namespace;
 use crate::gen::out::OutFile;
 use crate::gen::{include, Opt};
 use crate::syntax::atom::Atom::{self, *};
 use crate::syntax::mangled::ToMangled;
 use crate::syntax::typename::ToTypename;
-use crate::syntax::{Api, ExternFn, Struct, Type, Types, Var};
+use crate::syntax::{Api, ExternFn, Signature, Struct, Type, Types, Var};
 use proc_macro2::Ident;
 
 pub(super) fn gen(
-    namespace: Vec<String>,
+    namespace: Namespace,
     apis: &[Api],
     types: &Types,
     opt: Opt,
@@ -112,6 +113,7 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
     let mut needs_rust_str = false;
     let mut needs_rust_box = false;
     let mut needs_rust_vec = false;
+    let mut needs_rust_fn = false;
     for ty in types {
         match ty {
             Type::RustBox(_) => {
@@ -126,6 +128,9 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
                 out.include.cstdint = true;
                 out.include.string = true;
                 needs_rust_str = true;
+            }
+            Type::Fn(_) => {
+                needs_rust_fn = true;
             }
             ty if ty == RustString => {
                 out.include.array = true;
@@ -183,6 +188,7 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
         || needs_rust_str
         || needs_rust_box
         || needs_rust_vec
+        || needs_rust_fn
         || needs_rust_error
         || needs_unsafe_bitcopy
         || needs_manually_drop
@@ -192,10 +198,16 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
         writeln!(out, "// #include \"rust/cxx.h\"");
     }
 
+    if needs_rust_string {
+        out.next_section();
+        writeln!(out, "struct unsafe_bitcopy_t;");
+    }
+
     write_header_section(out, needs_rust_string, "CXXBRIDGE02_RUST_STRING");
     write_header_section(out, needs_rust_str, "CXXBRIDGE02_RUST_STR");
     write_header_section(out, needs_rust_box, "CXXBRIDGE02_RUST_BOX");
     write_header_section(out, needs_rust_vec, "CXXBRIDGE02_RUST_VEC");
+    write_header_section(out, needs_rust_fn, "CXXBRIDGE02_RUST_FN");
     write_header_section(out, needs_rust_error, "CXXBRIDGE02_RUST_ERROR");
     write_header_section(out, needs_unsafe_bitcopy, "CXXBRIDGE02_RUST_BITCOPY");
 
@@ -309,10 +321,7 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     } else {
         write_extern_return_type_space(out, &efn.ret, types);
     }
-    for name in out.namespace.clone() {
-        write!(out, "{}$", name);
-    }
-    write!(out, "cxxbridge02${}(", efn.ident);
+    write!(out, "{}cxxbridge02${}(", out.namespace, efn.ident);
     for (i, arg) in efn.args.iter().enumerate() {
         if i > 0 {
             write!(out, ", ");
@@ -413,30 +422,71 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
         writeln!(out, "  return throw$;");
     }
     writeln!(out, "}}");
+    for arg in &efn.args {
+        if let Type::Fn(f) = &arg.ty {
+            let var = &arg.ident;
+            write_function_pointer_trampoline(out, efn, var, f, types);
+        }
+    }
+}
+
+fn write_function_pointer_trampoline(
+    out: &mut OutFile,
+    efn: &ExternFn,
+    var: &Ident,
+    f: &Signature,
+    types: &Types,
+) {
+    out.next_section();
+    let r_trampoline = format!("{}cxxbridge02${}${}$1", out.namespace, efn.ident, var);
+    let indirect_call = true;
+    write_rust_function_decl_impl(out, &r_trampoline, f, types, indirect_call);
+
+    out.next_section();
+    let c_trampoline = format!("{}cxxbridge02${}${}$0", out.namespace, efn.ident, var);
+    write_rust_function_shim_impl(out, &c_trampoline, f, types, &r_trampoline, indirect_call);
 }
 
 fn write_rust_function_decl(out: &mut OutFile, efn: &ExternFn, types: &Types) {
-    if efn.throws {
+    let link_name = format!("{}cxxbridge02${}", out.namespace, efn.ident);
+    let indirect_call = false;
+    write_rust_function_decl_impl(out, &link_name, efn, types, indirect_call);
+}
+
+fn write_rust_function_decl_impl(
+    out: &mut OutFile,
+    link_name: &str,
+    sig: &Signature,
+    types: &Types,
+    indirect_call: bool,
+) {
+    if sig.throws {
         write!(out, "::rust::Str::Repr ");
     } else {
-        write_extern_return_type_space(out, &efn.ret, types);
+        write_extern_return_type_space(out, &sig.ret, types);
     }
-    for name in out.namespace.clone() {
-        write!(out, "{}$", name);
-    }
-    write!(out, "cxxbridge02${}(", efn.ident);
-    for (i, arg) in efn.args.iter().enumerate() {
-        if i > 0 {
+    write!(out, "{}(", link_name);
+    let mut needs_comma = false;
+    for arg in &sig.args {
+        if needs_comma {
             write!(out, ", ");
         }
         write_extern_arg(out, arg, types);
+        needs_comma = true;
     }
-    if indirect_return(efn, types) {
-        if !efn.args.is_empty() {
+    if indirect_return(sig, types) {
+        if needs_comma {
             write!(out, ", ");
         }
-        write_return_type(out, &efn.ret);
+        write_return_type(out, &sig.ret);
         write!(out, "*return$");
+        needs_comma = true;
+    }
+    if indirect_call {
+        if needs_comma {
+            write!(out, ", ");
+        }
+        write!(out, "void *");
     }
     writeln!(out, ") noexcept;");
 }
@@ -445,24 +495,44 @@ fn write_rust_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     for line in efn.doc.to_string().lines() {
         writeln!(out, "//{}", line);
     }
-    write_return_type(out, &efn.ret);
-    write!(out, "{}(", efn.ident);
-    for (i, arg) in efn.args.iter().enumerate() {
+    let local_name = efn.ident.to_string();
+    let invoke = format!("{}cxxbridge02${}", out.namespace, efn.ident);
+    let indirect_call = false;
+    write_rust_function_shim_impl(out, &local_name, efn, types, &invoke, indirect_call);
+}
+
+fn write_rust_function_shim_impl(
+    out: &mut OutFile,
+    local_name: &str,
+    sig: &Signature,
+    types: &Types,
+    invoke: &str,
+    indirect_call: bool,
+) {
+    write_return_type(out, &sig.ret);
+    write!(out, "{}(", local_name);
+    for (i, arg) in sig.args.iter().enumerate() {
         if i > 0 {
             write!(out, ", ");
         }
         write_type_space(out, &arg.ty);
         write!(out, "{}", arg.ident);
     }
+    if indirect_call {
+        if !sig.args.is_empty() {
+            write!(out, ", ");
+        }
+        write!(out, "void *extern$");
+    }
     write!(out, ")");
-    if !efn.throws {
+    if !sig.throws {
         write!(out, " noexcept");
     }
     if out.header {
         writeln!(out, ";");
     } else {
         writeln!(out, " {{");
-        for arg in &efn.args {
+        for arg in &sig.args {
             if arg.ty != RustString && types.needs_indirect_abi(&arg.ty) {
                 out.include.utility = true;
                 write!(out, "  ::rust::ManuallyDrop<");
@@ -471,13 +541,13 @@ fn write_rust_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
             }
         }
         write!(out, "  ");
-        let indirect_return = indirect_return(efn, types);
+        let indirect_return = indirect_return(sig, types);
         if indirect_return {
             write!(out, "::rust::MaybeUninit<");
-            write_type(out, efn.ret.as_ref().unwrap());
+            write_type(out, sig.ret.as_ref().unwrap());
             writeln!(out, "> return$;");
             write!(out, "  ");
-        } else if let Some(ret) = &efn.ret {
+        } else if let Some(ret) = &sig.ret {
             write!(out, "return ");
             match ret {
                 Type::RustBox(_) => {
@@ -492,14 +562,11 @@ fn write_rust_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
                 _ => {}
             }
         }
-        if efn.throws {
+        if sig.throws {
             write!(out, "::rust::Str::Repr error$ = ");
         }
-        for name in out.namespace.clone() {
-            write!(out, "{}$", name);
-        }
-        write!(out, "cxxbridge02${}(", efn.ident);
-        for (i, arg) in efn.args.iter().enumerate() {
+        write!(out, "{}(", invoke);
+        for (i, arg) in sig.args.iter().enumerate() {
             if i > 0 {
                 write!(out, ", ");
             }
@@ -518,19 +585,25 @@ fn write_rust_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
             }
         }
         if indirect_return {
-            if !efn.args.is_empty() {
+            if !sig.args.is_empty() {
                 write!(out, ", ");
             }
             write!(out, "&return$.value");
         }
+        if indirect_call {
+            if !sig.args.is_empty() || indirect_return {
+                write!(out, ", ");
+            }
+            write!(out, "extern$");
+        }
         write!(out, ")");
-        if let Some(ret) = &efn.ret {
+        if let Some(ret) = &sig.ret {
             if let Type::RustBox(_) | Type::UniquePtr(_) = ret {
                 write!(out, ")");
             }
         }
         writeln!(out, ";");
-        if efn.throws {
+        if sig.throws {
             writeln!(out, "  if (error$.ptr) {{");
             writeln!(out, "    throw ::rust::Error(error$);");
             writeln!(out, "  }}");
@@ -550,10 +623,10 @@ fn write_return_type(out: &mut OutFile, ty: &Option<Type>) {
     }
 }
 
-fn indirect_return(efn: &ExternFn, types: &Types) -> bool {
-    efn.ret
+fn indirect_return(sig: &Signature, types: &Types) -> bool {
+    sig.ret
         .as_ref()
-        .map_or(false, |ret| efn.throws || types.needs_indirect_abi(ret))
+        .map_or(false, |ret| sig.throws || types.needs_indirect_abi(ret))
 }
 
 fn write_indirect_return_type(out: &mut OutFile, ty: &Type) {
@@ -653,7 +726,21 @@ fn write_type(out: &mut OutFile, ty: &Type) {
         Type::Str(_) => {
             write!(out, "::rust::Str");
         }
-        Type::Fn(_) => unimplemented!(),
+        Type::Fn(f) => {
+            write!(out, "::rust::{}<", if f.throws { "TryFn" } else { "Fn" });
+            match &f.ret {
+                Some(ret) => write_type(out, ret),
+                None => write!(out, "void"),
+            }
+            write!(out, "(");
+            for (i, arg) in f.args.iter().enumerate() {
+                if i > 0 {
+                    write!(out, ", ");
+                }
+                write_type(out, &arg.ty);
+            }
+            write!(out, ")>");
+        }
         Type::Void(_) => unreachable!(),
     }
 }
@@ -670,9 +757,9 @@ fn write_space_after_type(out: &mut OutFile, ty: &Type) {
         | Type::UniquePtr(_)
         | Type::Str(_)
         | Type::Vector(_)
-        | Type::RustVec(_) => write!(out, " "),
+        | Type::RustVec(_)
+        | Type::Fn(_) => write!(out, " "),
         Type::Ref(_) => {}
-        Type::Fn(_) => unimplemented!(),
         Type::Void(_) => unreachable!(),
     }
 }
@@ -769,8 +856,9 @@ fn write_rust_box_extern(out: &mut OutFile, ident: &Ident) {
 }
 
 fn write_rust_vec_extern(out: &mut OutFile, ty: &Type) {
-    let inner = ty.to_typename(&out.namespace);
-    let instance = ty.to_mangled(&out.namespace);
+    let namespace = out.namespace.iter().cloned().collect::<Vec<String>>();
+    let inner = ty.to_typename(&namespace);
+    let instance = ty.to_mangled(&namespace);
 
     writeln!(out, "#ifndef CXXBRIDGE02_RUST_VEC_{}", instance);
     writeln!(out, "#define CXXBRIDGE02_RUST_VEC_{}", instance);
@@ -813,8 +901,9 @@ fn write_rust_box_impl(out: &mut OutFile, ident: &Ident) {
 }
 
 fn write_rust_vec_impl(out: &mut OutFile, ty: &Type) {
-    let inner = ty.to_typename(&out.namespace);
-    let instance = ty.to_mangled(&out.namespace);
+    let namespace = out.namespace.iter().cloned().collect::<Vec<String>>();
+    let inner = ty.to_typename(&namespace);
+    let instance = ty.to_mangled(&namespace);
 
     writeln!(out, "template <>");
     writeln!(out, "void Vec<{}>::drop() noexcept {{", inner);
@@ -846,8 +935,9 @@ fn write_rust_vec_impl(out: &mut OutFile, ty: &Type) {
 
 fn write_unique_ptr(out: &mut OutFile, ty: &Type) {
     out.include.utility = true;
-    let inner = ty.to_typename(&out.namespace);
-    let instance = ty.to_mangled(&out.namespace);
+    let namespace = out.namespace.iter().cloned().collect::<Vec<String>>();
+    let inner = ty.to_typename(&namespace);
+    let instance = ty.to_mangled(&namespace);
 
     writeln!(out, "#ifndef CXXBRIDGE02_UNIQUE_PTR_{}", instance);
     writeln!(out, "#define CXXBRIDGE02_UNIQUE_PTR_{}", instance);
