@@ -770,15 +770,8 @@ fn write_generic_instantiations(out: &mut OutFile, types: &Types) {
     }
 
     fn allow_vector(ident: &Ident) -> bool {
-        if let Some(ty) = Atom::from(ident) {
-            if ty.is_valid_vector_target() {
-                true
-            } else {
-                false
-            }
-        } else {
-            true
-        }
+        // Note: built-in types such as u8 are already defined in cxx.cc
+        Atom::from(ident).is_none()
     }
 
     out.begin_block("extern \"C\"");
@@ -799,9 +792,13 @@ fn write_generic_instantiations(out: &mut OutFile, types: &Types) {
                     out.next_section();
                     write_unique_ptr(out, &ptr.inner);
                 }
-            } else if let Type::Vector(_) = &ptr.inner {
-                out.next_section();
-                write_unique_ptr(out, &ptr.inner);
+            } else if let Type::Vector(ptr1) = &ptr.inner {
+                if let Type::Ident(inner) = &ptr1.inner {
+                    if allow_vector(inner) {
+                        out.next_section();
+                        write_unique_ptr(out, &ptr.inner);
+                    }
+                }
             }
         } else if let Type::Vector(ptr) = ty {
             if let Type::Ident(inner) = &ptr.inner {
