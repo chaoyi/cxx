@@ -770,8 +770,15 @@ fn write_generic_instantiations(out: &mut OutFile, types: &Types) {
     }
 
     fn allow_vector(ident: &Ident) -> bool {
-        // Note: built-in types such as u8 are written automatically
-        !Atom::from(ident).is_some()
+        if let Some(ty) = Atom::from(ident) {
+            if ty.is_valid_vector_target() {
+                true
+            } else {
+                false
+            }
+        } else {
+            true
+        }
     }
 
     out.begin_block("extern \"C\"");
@@ -805,12 +812,6 @@ fn write_generic_instantiations(out: &mut OutFile, types: &Types) {
             }
         }
     }
-
-    // Write out all vector functions for built-in types
-    for atom in Atom::iterator().filter(|a| a.is_valid_vector_target()) {
-        write_vector(out, &atom.to_ident());
-    }
-
     out.end_block("extern \"C\"");
 
     out.begin_block("namespace rust");

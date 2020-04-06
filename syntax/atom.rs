@@ -1,5 +1,5 @@
 use crate::syntax::Type;
-use proc_macro2::{Ident, Span};
+use proc_macro2::Ident;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum Atom {
@@ -43,28 +43,6 @@ impl Atom {
         }
     }
 
-    pub fn to_ident(&self) -> Ident {
-        use self::Atom::*;
-        let id = match self {
-            Bool => "bool",
-            U8 => "u8",
-            U16 => "u16",
-            U32 => "u32",
-            U64 => "u64",
-            Usize => "usize",
-            I8 => "i8",
-            I16 => "i16",
-            I32 => "i32",
-            I64 => "i64",
-            Isize => "isize",
-            F32 => "f32",
-            F64 => "f64",
-            CxxString => "CxxString",
-            RustString => "String",
-        };
-        Ident::new(id, Span::call_site())
-    }
-
     pub fn to_cxx(&self) -> &'static str {
         use self::Atom::*;
         match self {
@@ -100,15 +78,6 @@ impl Atom {
             || *self == Isize
             || *self == F32
             || *self == F64
-    }
-
-    pub fn iterator() -> std::slice::Iter<'static, Atom> {
-        use self::Atom::*;
-        static ATOMS: [Atom; 15] = [
-            Bool, U8, U16, U32, U64, Usize, I8, I16, I32, I64, Isize, F32, F64, CxxString,
-            RustString,
-        ];
-        ATOMS.iter()
     }
 }
 
