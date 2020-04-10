@@ -796,7 +796,7 @@ fn write_generic_instantiations(out: &mut OutFile, types: &Types) {
                 if let Type::Ident(inner) = &ptr1.inner {
                     if allow_vector(inner) {
                         out.next_section();
-                        write_unique_ptr(out, &ptr.inner);
+                        write_unique_ptr(out, &ptr.inner, types);
                     }
                 }
             }
@@ -955,18 +955,21 @@ fn write_unique_ptr(out: &mut OutFile, ty: &Type, types: &Types) {
     );
     writeln!(out, "  new (ptr) ::std::unique_ptr<{}>();", inner);
     writeln!(out, "}}");
-    if types.structs.contains_key(ident) {
-        writeln!(
+    match ty {
+        Type::Ident(ident) if types.structs.contains_key(ident) => {
+            writeln!(
             out,
             "void cxxbridge02$unique_ptr${}$new(::std::unique_ptr<{}> *ptr, {} *value) noexcept {{",
             instance, inner, inner,
         );
-        writeln!(
-            out,
-            "  new (ptr) ::std::unique_ptr<{}>(new {}(::std::move(*value)));",
-            inner, inner,
-        );
-        writeln!(out, "}}");
+            writeln!(
+                out,
+                "  new (ptr) ::std::unique_ptr<{}>(new {}(::std::move(*value)));",
+                inner, inner,
+            );
+            writeln!(out, "}}");
+        }
+        _ => (),
     }
     writeln!(
         out,

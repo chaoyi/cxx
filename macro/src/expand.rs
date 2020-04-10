@@ -1,6 +1,7 @@
 use crate::namespace::Namespace;
 use crate::syntax::atom::Atom::{self, *};
 use crate::syntax::mangled::ToMangled;
+use crate::syntax::typename::ToTypename;
 use crate::syntax::{self, check, Api, ExternFn, ExternType, Signature, Struct, Type, Types};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
@@ -94,17 +95,17 @@ pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
         } else if let Type::UniquePtr(ptr) = ty {
             if let Type::Ident(ident) = &ptr.inner {
                 if Atom::from(ident).is_none() {
-                    expanded.extend(expand_unique_ptr(namespace, ident, types));
+                    expanded.extend(expand_unique_ptr(namespace, &ptr.inner, types));
                 }
             } else if let Type::Vector(_) = &ptr.inner {
                 // Generate code for unique_ptr<vector<T>> if T is not an atom
                 // or if T is a primitive.
                 // Code for primitives is already generated
                 match Atom::from(ident) {
-                    None => expanded.extend(expand_unique_ptr(namespace, &ptr.inner)),
+                    None => expanded.extend(expand_unique_ptr(namespace, &ptr.inner, types)),
                     Some(atom) => {
                         if atom.is_valid_vector_target() {
-                            expanded.extend(expand_unique_ptr(namespace, &ptr.inner));
+                            expanded.extend(expand_unique_ptr(namespace, &ptr.inner, types));
                         }
                     }
                 }
@@ -564,9 +565,11 @@ fn expand_rust_vec(namespace: &Namespace, ty: &Type, ident: &Ident) -> TokenStre
     }
 }
 
-fn expand_unique_ptr(namespace: &Namespace, ty: &Type) -> TokenStream {
-    let name = ident.to_string();
-    let prefix = format!("cxxbridge02$unique_ptr${}{}$", namespace, ident);
+fn expand_unique_ptr(namespace: &Namespace, ty: &Type, types: &Types) -> TokenStream {
+    let name = ty.to_typename(&namespace.segments);
+    let inner = ty;
+    let mangled = ty.to_mangled(&namespace.segments) + "$";
+    let prefix = format!("cxxbridge02$unique_ptr${}", mangled);
     let link_null = format!("{}null", prefix);
     let link_new = format!("{}new", prefix);
     let link_raw = format!("{}raw", prefix);
@@ -574,8 +577,8 @@ fn expand_unique_ptr(namespace: &Namespace, ty: &Type) -> TokenStream {
     let link_release = format!("{}release", prefix);
     let link_drop = format!("{}drop", prefix);
 
-    let new_method = if types.structs.contains_key(ident) {
-        Some(quote! {
+    let new_method = match ty {
+        Type::Ident(ident) if types.structs.contains_key(ident) => Some(quote! {
             fn __new(mut value: Self) -> *mut ::std::ffi::c_void {
                 extern "C" {
                     #[link_name = #link_new]
@@ -585,13 +588,12 @@ fn expand_unique_ptr(namespace: &Namespace, ty: &Type) -> TokenStream {
                 unsafe { __new(&mut repr, &mut value) }
                 repr
             }
-        })
-    } else {
-        None
+        }),
+        _ => None,
     };
 
     quote! {
-        unsafe impl ::cxx::private::UniquePtrTarget for #ident {
+        unsafe impl ::cxx::private::UniquePtrTarget for #inner {
             const __NAME: &'static str = #name;
             fn __null() -> *mut ::std::ffi::c_void {
                 extern "C" {
