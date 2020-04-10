@@ -790,7 +790,7 @@ fn write_generic_instantiations(out: &mut OutFile, types: &Types) {
             if let Type::Ident(inner) = &ptr.inner {
                 if allow_unique_ptr(inner) {
                     out.next_section();
-                    write_unique_ptr(out, &ptr.inner);
+                    write_unique_ptr(out, &ptr.inner, types);
                 }
             } else if let Type::Vector(ptr1) = &ptr.inner {
                 if let Type::Ident(inner) = &ptr1.inner {
@@ -930,7 +930,7 @@ fn write_rust_vec_impl(out: &mut OutFile, ty: &Type) {
     writeln!(out, "}}");
 }
 
-fn write_unique_ptr(out: &mut OutFile, ty: &Type) {
+fn write_unique_ptr(out: &mut OutFile, ty: &Type, types: &Types) {
     out.include.utility = true;
     let namespace = out.namespace.iter().cloned().collect::<Vec<String>>();
     let inner = ty.to_typename(&namespace);
@@ -955,17 +955,19 @@ fn write_unique_ptr(out: &mut OutFile, ty: &Type) {
     );
     writeln!(out, "  new (ptr) ::std::unique_ptr<{}>();", inner);
     writeln!(out, "}}");
-    writeln!(
-        out,
-        "void cxxbridge02$unique_ptr${}$new(::std::unique_ptr<{}> *ptr, {} *value) noexcept {{",
-        instance, inner, inner,
-    );
-    writeln!(
-        out,
-        "  new (ptr) ::std::unique_ptr<{}>(new {}(::std::move(*value)));",
-        inner, inner,
-    );
-    writeln!(out, "}}");
+    if types.structs.contains_key(ident) {
+        writeln!(
+            out,
+            "void cxxbridge02$unique_ptr${}$new(::std::unique_ptr<{}> *ptr, {} *value) noexcept {{",
+            instance, inner, inner,
+        );
+        writeln!(
+            out,
+            "  new (ptr) ::std::unique_ptr<{}>(new {}(::std::move(*value)));",
+            inner, inner,
+        );
+        writeln!(out, "}}");
+    }
     writeln!(
         out,
         "void cxxbridge02$unique_ptr${}$raw(::std::unique_ptr<{}> *ptr, {} *raw) noexcept {{",

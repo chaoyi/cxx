@@ -181,7 +181,8 @@ template <typename Signature, bool Throws = false> class Fn;
 template <typename Ret, typename... Args, bool Throws>
 class Fn<Ret(Args...), Throws> {
 public:
-  Ret operator()(Args... args) noexcept(!Throws);
+  Ret operator()(Args... args) const noexcept(!Throws);
+  Fn operator*() const noexcept;
 
 private:
   Ret (*trampoline)(Args..., void *fn) noexcept(!Throws);
@@ -227,8 +228,13 @@ constexpr unsafe_bitcopy_t unsafe_bitcopy{};
 #endif // CXXBRIDGE02_RUST_BITCOPY
 
 template <typename Ret, typename... Args, bool Throws>
-Ret Fn<Ret(Args...), Throws>::operator()(Args... args) noexcept(!Throws) {
+Ret Fn<Ret(Args...), Throws>::operator()(Args... args) const noexcept(!Throws) {
   return (*this->trampoline)(std::move(args)..., this->fn);
+}
+
+template <typename Ret, typename... Args, bool Throws>
+Fn<Ret(Args...), Throws> Fn<Ret(Args...), Throws>::operator*() const noexcept {
+  return *this;
 }
 
 } // namespace cxxbridge02

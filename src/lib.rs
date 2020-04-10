@@ -337,9 +337,10 @@
 //!
 //! [https://github.com/dtolnay/cxx]: https://github.com/dtolnay/cxx
 
-#![doc(html_root_url = "https://docs.rs/cxx/0.2.1")]
+#![doc(html_root_url = "https://docs.rs/cxx/0.2.6")]
 #![deny(improper_ctypes)]
 #![allow(
+    clippy::cognitive_complexity,
     clippy::declare_interior_mutable_const,
     clippy::inherent_to_string,
     clippy::large_enum_variant,

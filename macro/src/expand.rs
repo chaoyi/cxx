@@ -94,7 +94,7 @@ pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
         } else if let Type::UniquePtr(ptr) = ty {
             if let Type::Ident(ident) = &ptr.inner {
                 if Atom::from(ident).is_none() {
-                    expanded.extend(expand_unique_ptr(namespace, &ptr.inner));
+                    expanded.extend(expand_unique_ptr(namespace, ident, types));
                 }
             } else if let Type::Vector(_) = &ptr.inner {
                 // Generate code for unique_ptr<vector<T>> if T is not an atom
@@ -332,7 +332,7 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
     .unwrap_or(call);
     quote! {
         #doc
-        pub fn #ident(#(#args),*) #ret {
+        pub fn #ident(#args) #ret {
             extern "C" {
                 #decl
             }
@@ -565,9 +565,8 @@ fn expand_rust_vec(namespace: &Namespace, ty: &Type, ident: &Ident) -> TokenStre
 }
 
 fn expand_unique_ptr(namespace: &Namespace, ty: &Type) -> TokenStream {
-    let inner = ty;
-    let mangled = ty.to_mangled(&namespace.segments) + "$";
-    let prefix = format!("cxxbridge02$unique_ptr${}", mangled);
+    let name = ident.to_string();
+    let prefix = format!("cxxbridge02$unique_ptr${}{}$", namespace, ident);
     let link_null = format!("{}null", prefix);
     let link_new = format!("{}new", prefix);
     let link_raw = format!("{}raw", prefix);
@@ -575,8 +574,25 @@ fn expand_unique_ptr(namespace: &Namespace, ty: &Type) -> TokenStream {
     let link_release = format!("{}release", prefix);
     let link_drop = format!("{}drop", prefix);
 
+    let new_method = if types.structs.contains_key(ident) {
+        Some(quote! {
+            fn __new(mut value: Self) -> *mut ::std::ffi::c_void {
+                extern "C" {
+                    #[link_name = #link_new]
+                    fn __new(this: *mut *mut ::std::ffi::c_void, value: *mut #ident);
+                }
+                let mut repr = ::std::ptr::null_mut::<::std::ffi::c_void>();
+                unsafe { __new(&mut repr, &mut value) }
+                repr
+            }
+        })
+    } else {
+        None
+    };
+
     quote! {
-        unsafe impl ::cxx::private::UniquePtrTarget for #inner {
+        unsafe impl ::cxx::private::UniquePtrTarget for #ident {
+            const __NAME: &'static str = #name;
             fn __null() -> *mut ::std::ffi::c_void {
                 extern "C" {
                     #[link_name = #link_null]
@@ -586,15 +602,7 @@ fn expand_unique_ptr(namespace: &Namespace, ty: &Type) -> TokenStream {
                 unsafe { __null(&mut repr) }
                 repr
             }
-            fn __new(mut value: Self) -> *mut ::std::ffi::c_void {
-                extern "C" {
-                    #[link_name = #link_new]
-                    fn __new(this: *mut *mut ::std::ffi::c_void, value: *mut #inner);
-                }
-                let mut repr = ::std::ptr::null_mut::<::std::ffi::c_void>();
-                unsafe { __new(&mut repr, &mut value) }
-                repr
-            }
+            #new_method
             unsafe fn __raw(raw: *mut Self) -> *mut ::std::ffi::c_void {
                 extern "C" {
                     #[link_name = #link_raw]

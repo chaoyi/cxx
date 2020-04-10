@@ -2,7 +2,8 @@ use crate::cxx_string::CxxString;
 use std::ffi::c_void;
 use std::fmt::{self, Debug, Display};
 use std::marker::PhantomData;
-use std::mem::{self, MaybeUninit};
+use std::mem;
+use std::ops::{Deref, DerefMut};
 use std::ptr;
 
 /// Binding to C++ `std::unique_ptr<T, std::default_delete<T>>`.
@@ -51,6 +52,12 @@ where
         unsafe { T::__get(self.repr).as_ref() }
     }
 
+    /// Returns a mutable reference to the object owned by this UniquePtr if
+    /// any, otherwise None.
+    pub fn as_mut(&mut self) -> Option<&mut T> {
+        unsafe { (T::__get(self.repr) as *mut T).as_mut() }
+    }
+
     /// Consumes the UniquePtr, releasing its ownership of the heap-allocated T.
     ///
     /// Matches the behavior of [std::unique_ptr\<T\>::release](https://en.cppreference.com/w/cpp/memory/unique_ptr/release).
@@ -88,6 +95,32 @@ where
     }
 }
 
+impl<T> Deref for UniquePtr<T>
+where
+    T: UniquePtrTarget,
+{
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self.as_ref() {
+            Some(target) => target,
+            None => panic!("called deref on a null UniquePtr<{}>", T::__NAME),
+        }
+    }
+}
+
+impl<T> DerefMut for UniquePtr<T>
+where
+    T: UniquePtrTarget,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self.as_mut() {
+            Some(target) => target,
+            None => panic!("called deref_mut on a null UniquePtr<{}>", T::__NAME),
+        }
+    }
+}
+
 impl<T> Debug for UniquePtr<T>
 where
     T: Debug + UniquePtrTarget,
@@ -116,9 +149,19 @@ where
 // codebase.
 pub unsafe trait UniquePtrTarget {
     #[doc(hidden)]
+    const __NAME: &'static str;
+    #[doc(hidden)]
     fn __null() -> *mut c_void;
     #[doc(hidden)]
-    fn __new(value: Self) -> *mut c_void;
+    fn __new(value: Self) -> *mut c_void
+    where
+        Self: Sized,
+    {
+        // Opaque C types do not get this method because they can never exist by
+        // value on the Rust side of the bridge.
+        let _ = value;
+        unreachable!()
+    }
     #[doc(hidden)]
     unsafe fn __raw(raw: *mut Self) -> *mut c_void;
     #[doc(hidden)]
@@ -132,8 +175,6 @@ pub unsafe trait UniquePtrTarget {
 extern "C" {
     #[link_name = "cxxbridge02$unique_ptr$std$string$null"]
     fn unique_ptr_std_string_null(this: *mut *mut c_void);
-    #[link_name = "cxxbridge02$unique_ptr$std$string$new"]
-    fn unique_ptr_std_string_new(this: *mut *mut c_void, value: *mut CxxString);
     #[link_name = "cxxbridge02$unique_ptr$std$string$raw"]
     fn unique_ptr_std_string_raw(this: *mut *mut c_void, raw: *mut CxxString);
     #[link_name = "cxxbridge02$unique_ptr$std$string$get"]
@@ -145,15 +186,10 @@ extern "C" {
 }
 
 unsafe impl UniquePtrTarget for CxxString {
+    const __NAME: &'static str = "CxxString";
     fn __null() -> *mut c_void {
         let mut repr = ptr::null_mut::<c_void>();
         unsafe { unique_ptr_std_string_null(&mut repr) }
-        repr
-    }
-    fn __new(value: Self) -> *mut c_void {
-        let mut repr = ptr::null_mut::<c_void>();
-        let mut value = MaybeUninit::new(value);
-        unsafe { unique_ptr_std_string_new(&mut repr, value.as_mut_ptr() as *mut Self) }
         repr
     }
     unsafe fn __raw(raw: *mut Self) -> *mut c_void {
