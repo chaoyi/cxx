@@ -114,6 +114,7 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
     let mut needs_rust_box = false;
     let mut needs_rust_vec = false;
     let mut needs_rust_fn = false;
+    let mut needs_rust_isize = false;
     for ty in types {
         match ty {
             Type::RustBox(_) => {
@@ -131,6 +132,10 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
             }
             Type::Fn(_) => {
                 needs_rust_fn = true;
+            }
+            ty if ty == Isize => {
+                out.include.base_tsd = true;
+                needs_rust_isize = true;
             }
             ty if ty == RustString => {
                 out.include.array = true;
@@ -190,6 +195,7 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
         || needs_rust_vec
         || needs_rust_fn
         || needs_rust_error
+        || needs_rust_isize
         || needs_unsafe_bitcopy
         || needs_manually_drop
         || needs_maybe_uninit
@@ -209,6 +215,7 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
     write_header_section(out, needs_rust_vec, "CXXBRIDGE02_RUST_VEC");
     write_header_section(out, needs_rust_fn, "CXXBRIDGE02_RUST_FN");
     write_header_section(out, needs_rust_error, "CXXBRIDGE02_RUST_ERROR");
+    write_header_section(out, needs_rust_isize, "CXXBRIDGE02_RUST_ISIZE");
     write_header_section(out, needs_unsafe_bitcopy, "CXXBRIDGE02_RUST_BITCOPY");
 
     if needs_manually_drop {

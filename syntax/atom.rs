@@ -56,7 +56,7 @@ impl Atom {
             I16 => "int16_t",
             I32 => "int32_t",
             I64 => "int64_t",
-            Isize => "ssize_t",
+            Isize => "::rust::isize",
             F32 => "float",
             F64 => "double",
             CxxString => "::std::string",

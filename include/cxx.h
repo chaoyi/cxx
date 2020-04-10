@@ -8,6 +8,9 @@
 #include <vector>
 #include <type_traits>
 #include <utility>
+#if defined(_WIN32)
+#include <BaseTsd.h>
+#endif
 
 #if defined(_MSC_VER)
 #include <BaseTsd.h>
@@ -206,6 +209,15 @@ private:
   Str::Repr msg;
 };
 #endif // CXXBRIDGE02_RUST_ERROR
+
+#ifndef CXXBRIDGE02_RUST_ISIZE
+#define CXXBRIDGE02_RUST_ISIZE
+#if defined(_WIN32)
+using isize = SSIZE_T;
+#else
+using isize = ssize_t;
+#endif
+#endif // CXXBRIDGE02_RUST_ISIZE
 
 std::ostream &operator<<(std::ostream &, const String &);
 std::ostream &operator<<(std::ostream &, const Str &);

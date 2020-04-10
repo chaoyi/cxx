@@ -39,6 +39,7 @@ pub struct Includes {
     pub vector: bool,
     pub type_traits: bool,
     pub utility: bool,
+    pub base_tsd: bool,
 }
 
 impl Includes {
@@ -88,6 +89,11 @@ impl Display for Includes {
         }
         if self.utility {
             writeln!(f, "#include <utility>")?;
+        }
+        if self.base_tsd {
+            writeln!(f, "#if defined(_WIN32)")?;
+            writeln!(f, "#include <BaseTsd.h>")?;
+            writeln!(f, "#endif")?;
         }
         if *self != Self::default() {
             writeln!(f)?;
