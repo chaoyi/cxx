@@ -112,7 +112,8 @@ private:
 
 #ifndef CXXBRIDGE02_RUST_BOX
 #define CXXBRIDGE02_RUST_BOX
-template <typename T> class Box final {
+template <typename T>
+class Box final {
 public:
   using value_type = T;
   using const_pointer = typename std::add_pointer<
@@ -121,9 +122,13 @@ public:
 
   Box(const Box &other) : Box(*other) {}
   Box(Box &&other) noexcept : ptr(other.ptr) { other.ptr = nullptr; }
-  Box(const T &val) {
+  explicit Box(const T &val) {
     this->uninit();
     ::new (this->ptr) T(val);
+  }
+  explicit Box(T &&val) {
+    this->uninit();
+    ::new (this->ptr) T(std::move(val));
   }
   Box &operator=(const Box &other) {
     if (this != &other) {
@@ -155,6 +160,14 @@ public:
   T *operator->() noexcept { return this->ptr; }
   T &operator*() noexcept { return *this->ptr; }
 
+  template <typename... Fields>
+  static Box in_place(Fields &&... fields) {
+    Box box;
+    box.uninit();
+    ::new (box.ptr) T{std::forward<Fields>(fields)...};
+    return box;
+  }
+
   // Important: requires that `raw` came from an into_raw call. Do not pass a
   // pointer from `new` or any other source.
   static Box from_raw(T *raw) noexcept {
@@ -179,7 +192,8 @@ private:
 
 #ifndef CXXBRIDGE02_RUST_FN
 #define CXXBRIDGE02_RUST_FN
-template <typename Signature, bool Throws = false> class Fn;
+template <typename Signature, bool Throws = false>
+class Fn;
 
 template <typename Ret, typename... Args, bool Throws>
 class Fn<Ret(Args...), Throws> {
@@ -192,7 +206,8 @@ private:
   void *fn;
 };
 
-template <typename Signature> using TryFn = Fn<Signature, true>;
+template <typename Signature>
+using TryFn = Fn<Signature, true>;
 #endif // CXXBRIDGE02_RUST_FN
 
 #ifndef CXXBRIDGE02_RUST_ERROR
@@ -225,11 +240,13 @@ std::ostream &operator<<(std::ostream &, const Str &);
 // Snake case aliases for use in code that uses this style for type names.
 using string = String;
 using str = Str;
-template <class T> using box = Box<T>;
+template <class T>
+using box = Box<T>;
 using error = Error;
 template <typename Signature, bool Throws = false>
 using fn = Fn<Signature, Throws>;
-template <typename Signature> using try_fn = TryFn<Signature>;
+template <typename Signature>
+using try_fn = TryFn<Signature>;
 
 #ifndef CXXBRIDGE02_RUST_BITCOPY
 #define CXXBRIDGE02_RUST_BITCOPY
