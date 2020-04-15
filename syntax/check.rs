@@ -1,5 +1,5 @@
 use crate::syntax::atom::Atom::{self, *};
-use crate::syntax::{error, ident, Api, ExternFn, Lang, Ref, Struct, Ty1, Type, Types};
+use crate::syntax::{error, ident, Api, ExternFn, Lang, Ref, Slice, Struct, Ty1, Type, Types};
 use proc_macro2::{Delimiter, Group, Ident, TokenStream};
 use quote::{quote, ToTokens};
 use std::fmt::Display;
@@ -31,6 +31,7 @@ fn do_typecheck(cx: &mut Check) {
             Type::UniquePtr(ptr) => check_type_unique_ptr(cx, ptr),
             Type::Vector(ptr) => check_type_vector(cx, ptr),
             Type::Ref(ty) => check_type_ref(cx, ty),
+            Type::Slice(ty) => check_type_slice(cx, ty),
             _ => {}
         }
     }
@@ -144,6 +145,10 @@ fn check_type_ref(cx: &mut Check, ty: &Ref) {
     cx.error(ty, "unsupported reference type");
 }
 
+fn check_type_slice(cx: &mut Check, ty: &Slice) {
+    cx.error(ty, "only &[u8] is supported so far, not other slice types");
+}
+
 fn check_api_struct(cx: &mut Check, strct: &Struct) {
     if strct.fields.is_empty() {
         let span = span_for_struct_error(strct);
@@ -238,7 +243,7 @@ fn check_multiple_arg_lifetimes(cx: &mut Check, efn: &ExternFn) {
 fn is_unsized(cx: &mut Check, ty: &Type) -> bool {
     let ident = match ty {
         Type::Ident(ident) => ident,
-        Type::Void(_) => return true,
+        Type::Slice(_) | Type::Void(_) => return true,
         _ => return false,
     };
     ident == CxxString || cx.types.cxx.contains(ident) || cx.types.rust.contains(ident)
@@ -284,6 +289,8 @@ fn describe(cx: &mut Check, ty: &Type) -> String {
         Type::Ref(_) => "reference".to_owned(),
         Type::Str(_) => "&str".to_owned(),
         Type::Vector(_) => "vector".to_owned(),
+        Type::Slice(_) => "slice".to_owned(),
+        Type::SliceRefU8(_) => "&[u8]".to_owned(),
         Type::Fn(_) => "function pointer".to_owned(),
         Type::Void(_) => "()".to_owned(),
     }

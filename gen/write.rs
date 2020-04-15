@@ -103,6 +103,7 @@ fn write_includes(out: &mut OutFile, types: &Types) {
             Type::RustBox(_) => out.include.type_traits = true,
             Type::UniquePtr(_) => out.include.memory = true,
             Type::Vector(_) => out.include.vector = true,
+            Type::SliceRefU8(_) => out.include.cstdint = true,
             _ => (),
         }
     }
@@ -111,6 +112,7 @@ fn write_includes(out: &mut OutFile, types: &Types) {
 fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
     let mut needs_rust_string = false;
     let mut needs_rust_str = false;
+    let mut needs_rust_slice = false;
     let mut needs_rust_box = false;
     let mut needs_rust_vec = false;
     let mut needs_rust_fn = false;
@@ -132,6 +134,9 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
             }
             Type::Fn(_) => {
                 needs_rust_fn = true;
+            }
+            Type::Slice(_) | Type::SliceRefU8(_) => {
+                needs_rust_slice = true;
             }
             ty if ty == Isize => {
                 out.include.base_tsd = true;
@@ -191,6 +196,7 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
 
     if needs_rust_string
         || needs_rust_str
+        || needs_rust_slice
         || needs_rust_box
         || needs_rust_vec
         || needs_rust_fn
@@ -211,6 +217,7 @@ fn write_include_cxxbridge(out: &mut OutFile, apis: &[Api], types: &Types) {
 
     write_header_section(out, needs_rust_string, "CXXBRIDGE02_RUST_STRING");
     write_header_section(out, needs_rust_str, "CXXBRIDGE02_RUST_STR");
+    write_header_section(out, needs_rust_slice, "CXXBRIDGE02_RUST_SLICE");
     write_header_section(out, needs_rust_box, "CXXBRIDGE02_RUST_BOX");
     write_header_section(out, needs_rust_vec, "CXXBRIDGE02_RUST_VEC");
     write_header_section(out, needs_rust_fn, "CXXBRIDGE02_RUST_FN");
@@ -375,6 +382,9 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     match &efn.ret {
         Some(Type::Ref(_)) => write!(out, "&"),
         Some(Type::Str(_)) if !indirect_return => write!(out, "::rust::Str::Repr("),
+        Some(Type::SliceRefU8(_)) if !indirect_return => {
+            write!(out, "::rust::Slice<uint8_t>::Repr(")
+        }
         _ => {}
     }
     write!(out, "{}$(", efn.ident);
@@ -409,7 +419,7 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
             out,
             " /* Use RVO to convert to r-value and move construct */"
         ),
-        Some(Type::Str(_)) if !indirect_return => write!(out, ")"),
+        Some(Type::Str(_)) | Some(Type::SliceRefU8(_)) if !indirect_return => write!(out, ")"),
         _ => {}
     }
     if indirect_return {
@@ -580,6 +590,7 @@ fn write_rust_function_shim_impl(
             }
             match &arg.ty {
                 Type::Str(_) => write!(out, "::rust::Str::Repr("),
+                Type::SliceRefU8(_) => write!(out, "::rust::Slice<uint8_t>::Repr("),
                 ty if types.needs_indirect_abi(ty) => write!(out, "&"),
                 _ => {}
             }
@@ -587,7 +598,7 @@ fn write_rust_function_shim_impl(
             match &arg.ty {
                 Type::RustBox(_) => write!(out, ".into_raw()"),
                 Type::UniquePtr(_) => write!(out, ".release()"),
-                Type::Str(_) => write!(out, ")"),
+                Type::Str(_) | Type::SliceRefU8(_) => write!(out, ")"),
                 ty if ty != RustString && types.needs_indirect_abi(ty) => write!(out, "$.value"),
                 _ => {}
             }
@@ -651,6 +662,7 @@ fn write_indirect_return_type(out: &mut OutFile, ty: &Type) {
             write!(out, " *");
         }
         Type::Str(_) => write!(out, "::rust::Str::Repr"),
+        Type::SliceRefU8(_) => write!(out, "::rust::Slice<uint8_t>::Repr"),
         _ => write_type(out, ty),
     }
 }
@@ -659,7 +671,7 @@ fn write_indirect_return_type_space(out: &mut OutFile, ty: &Type) {
     write_indirect_return_type(out, ty);
     match ty {
         Type::RustBox(_) | Type::UniquePtr(_) | Type::Ref(_) => {}
-        Type::Str(_) => write!(out, " "),
+        Type::Str(_) | Type::SliceRefU8(_) => write!(out, " "),
         _ => write_space_after_type(out, ty),
     }
 }
@@ -678,6 +690,7 @@ fn write_extern_return_type_space(out: &mut OutFile, ty: &Option<Type>, types: &
             write!(out, " *");
         }
         Some(Type::Str(_)) => write!(out, "::rust::Str::Repr "),
+        Some(Type::SliceRefU8(_)) => write!(out, "::rust::Slice<uint8_t>::Repr "),
         Some(ty) if types.needs_indirect_abi(ty) => write!(out, "void "),
         _ => write_return_type(out, ty),
     }
@@ -690,6 +703,7 @@ fn write_extern_arg(out: &mut OutFile, arg: &Var, types: &Types) {
             write!(out, "*");
         }
         Type::Str(_) => write!(out, "::rust::Str::Repr "),
+        Type::SliceRefU8(_) => write!(out, "::rust::Slice<uint8_t>::Repr "),
         _ => write_type_space(out, &arg.ty),
     }
     if types.needs_indirect_abi(&arg.ty) {
@@ -731,8 +745,15 @@ fn write_type(out: &mut OutFile, ty: &Type) {
             write_type(out, &r.inner);
             write!(out, " &");
         }
+        Type::Slice(_) => {
+            // For now, only U8 slices are supported, which are covered separately below
+            unreachable!()
+        }
         Type::Str(_) => {
             write!(out, "::rust::Str");
+        }
+        Type::SliceRefU8(_) => {
+            write!(out, "::rust::Slice<uint8_t>");
         }
         Type::Fn(f) => {
             write!(out, "::rust::{}<", if f.throws { "TryFn" } else { "Fn" });
@@ -766,9 +787,10 @@ fn write_space_after_type(out: &mut OutFile, ty: &Type) {
         | Type::Str(_)
         | Type::Vector(_)
         | Type::RustVec(_)
+        | Type::SliceRefU8(_)
         | Type::Fn(_) => write!(out, " "),
         Type::Ref(_) => {}
-        Type::Void(_) => unreachable!(),
+        Type::Void(_) | Type::Slice(_) => unreachable!(),
     }
 }
 

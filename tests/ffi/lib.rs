@@ -24,6 +24,7 @@ pub mod ffi {
         fn c_return_unique_ptr() -> UniquePtr<C>;
         fn c_return_ref(shared: &Shared) -> &usize;
         fn c_return_str(shared: &Shared) -> &str;
+        fn c_return_sliceu8(shared: &Shared) -> &[u8];
         fn c_return_rust_string() -> String;
         fn c_return_unique_ptr_string() -> UniquePtr<CxxString>;
         fn c_return_unique_ptr_vector_u8() -> UniquePtr<Vector<u8>>;
@@ -37,6 +38,7 @@ pub mod ffi {
         fn c_take_ref_r(r: &R);
         fn c_take_ref_c(c: &C);
         fn c_take_str(s: &str);
+        fn c_take_sliceu8(s: &[u8]);
         fn c_take_rust_string(s: String);
         fn c_take_unique_ptr_string(s: UniquePtr<CxxString>);
         fn c_take_unique_ptr_vector_u8(s: UniquePtr<Vector<u8>>);
@@ -55,6 +57,7 @@ pub mod ffi {
         fn c_try_return_box() -> Result<Box<R>>;
         fn c_try_return_ref(s: &String) -> Result<&String>;
         fn c_try_return_str(s: &str) -> Result<&str>;
+        fn c_try_return_sliceu8(s: &[u8]) -> Result<&[u8]>;
         fn c_try_return_rust_string() -> Result<String>;
         fn c_try_return_unique_ptr_string() -> Result<UniquePtr<CxxString>>;
     }
@@ -78,6 +81,7 @@ pub mod ffi {
         fn r_take_ref_r(r: &R);
         fn r_take_ref_c(c: &C);
         fn r_take_str(s: &str);
+        fn r_take_sliceu8(s: &[u8]);
         fn r_take_rust_string(s: String);
         fn r_take_unique_ptr_string(s: UniquePtr<CxxString>);
 
@@ -169,6 +173,11 @@ fn r_take_str(s: &str) {
 
 fn r_take_rust_string(s: String) {
     assert_eq!(s, "2020");
+}
+
+fn r_take_sliceu8(s: &[u8]) {
+    assert_eq!(s.len(), 5);
+    assert_eq!(std::str::from_utf8(s).unwrap(), "2020\0");
 }
 
 fn r_take_unique_ptr_string(s: UniquePtr<CxxString>) {

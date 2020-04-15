@@ -1,4 +1,4 @@
-use crate::syntax::{ExternFn, Receiver, Ref, Signature, Ty1, Type};
+use crate::syntax::{ExternFn, Receiver, Ref, Signature, Slice, Ty1, Type};
 use std::hash::{Hash, Hasher};
 use std::mem;
 use std::ops::Deref;
@@ -23,6 +23,8 @@ impl Hash for Type {
             Type::RustVec(t) => t.hash(state),
             Type::Vector(t) => t.hash(state),
             Type::Fn(t) => t.hash(state),
+            Type::Slice(t) => t.hash(state),
+            Type::SliceRefU8(t) => t.hash(state),
             Type::Void(_) => {}
         }
     }
@@ -41,6 +43,8 @@ impl PartialEq for Type {
             (Type::RustVec(lhs), Type::RustVec(rhs)) => lhs == rhs,
             (Type::Vector(lhs), Type::Vector(rhs)) => lhs == rhs,
             (Type::Fn(lhs), Type::Fn(rhs)) => lhs == rhs,
+            (Type::Slice(lhs), Type::Slice(rhs)) => lhs == rhs,
+            (Type::SliceRefU8(lhs), Type::SliceRefU8(rhs)) => lhs == rhs,
             (Type::Void(_), Type::Void(_)) => true,
             (_, _) => false,
         }
@@ -106,6 +110,26 @@ impl Hash for Ref {
             inner,
         } = self;
         mutability.is_some().hash(state);
+        inner.hash(state);
+    }
+}
+
+impl Eq for Slice {}
+
+impl PartialEq for Slice {
+    fn eq(&self, other: &Slice) -> bool {
+        let Slice { bracket: _, inner } = self;
+        let Slice {
+            bracket: _,
+            inner: inner2,
+        } = other;
+        inner == inner2
+    }
+}
+
+impl Hash for Slice {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let Slice { bracket: _, inner } = self;
         inner.hash(state);
     }
 }

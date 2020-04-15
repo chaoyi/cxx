@@ -244,6 +244,7 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
                 _ => quote!(#var),
             },
             Type::Str(_) => quote!(::cxx::private::RustStr::from(#var)),
+            Type::SliceRefU8(_) => quote!(::cxx::private::RustSliceU8::from(#var)),
             ty if types.needs_indirect_abi(ty) => quote!(#var.as_mut_ptr()),
             _ => quote!(#var),
         }
@@ -315,6 +316,7 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
                 _ => None,
             },
             Type::Str(_) => Some(quote!(#call.map(|r| r.as_str()))),
+            Type::SliceRefU8(_) => Some(quote!(#call.map(|r| r.as_slice()))),
             _ => None,
         })
     } else {
@@ -327,6 +329,7 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
                 _ => None,
             },
             Type::Str(_) => Some(quote!(#call.as_str())),
+            Type::SliceRefU8(_) => Some(quote!(#call.as_slice())),
             _ => None,
         })
     }
@@ -435,6 +438,7 @@ fn expand_rust_function_shim_impl(
                 _ => quote!(#ident),
             },
             Type::Str(_) => quote!(#ident.as_str()),
+            Type::SliceRefU8(_) => quote!(#ident.as_slice()),
             ty if types.needs_indirect_abi(ty) => quote!(::std::ptr::read(#ident)),
             _ => quote!(#ident),
         }
@@ -462,6 +466,7 @@ fn expand_rust_function_shim_impl(
                 _ => None,
             },
             Type::Str(_) => Some(quote!(::cxx::private::RustStr::from(#call))),
+            Type::SliceRefU8(_) => Some(quote!(::cxx::private::RustSliceU8::from(#call))),
             _ => None,
         })
         .unwrap_or(call);
@@ -753,6 +758,7 @@ fn expand_extern_type(ty: &Type) -> TokenStream {
             _ => quote!(#ty),
         },
         Type::Str(_) => quote!(::cxx::private::RustStr),
+        Type::SliceRefU8(_) => quote!(::cxx::private::RustSliceU8),
         _ => quote!(#ty),
     }
 }

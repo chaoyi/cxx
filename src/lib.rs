@@ -307,6 +307,7 @@
 //! <tr><th>name in Rust</th><th>name in C++</th><th>restrictions</th></tr>
 //! <tr><td>String</td><td>rust::String</td><td></td></tr>
 //! <tr><td>&amp;str</td><td>rust::Str</td><td></td></tr>
+//! <tr><td>&amp;[u8]</td><td>rust::Slice&lt;uint8_t&gt;</td><td><sup><i>arbitrary &amp;[T] not implemented yet</i></sup></td></tr>
 //! <tr><td><a href="https://docs.rs/cxx/0.2/cxx/struct.CxxString.html">CxxString</a></td><td>std::string</td><td><sup><i>cannot be passed by value</i></sup></td></tr>
 //! <tr><td>Box&lt;T&gt;</td><td>rust::Box&lt;T&gt;</td><td><sup><i>cannot hold opaque C++ type</i></sup></td></tr>
 //! <tr><td><a href="https://docs.rs/cxx/0.2/cxx/struct.UniquePtr.html">UniquePtr&lt;T&gt;</a></td><td>std::unique_ptr&lt;T&gt;</td><td><sup><i>cannot hold opaque Rust type</i></sup></td></tr>
@@ -324,7 +325,6 @@
 //!
 //! <table>
 //! <tr><th>name in Rust</th><th>name in C++</th></tr>
-//! <tr><td>&amp;[T]</td><td><sup><i>tbd</i></sup></td></tr>
 //! <tr><td>Vec&lt;T&gt;</td><td><sup><i>tbd</i></sup></td></tr>
 //! <tr><td>BTreeMap&lt;K, V&gt;</td><td><sup><i>tbd</i></sup></td></tr>
 //! <tr><td>HashMap&lt;K, V&gt;</td><td><sup><i>tbd</i></sup></td></tr>
@@ -337,7 +337,7 @@
 //!
 //! [https://github.com/dtolnay/cxx]: https://github.com/dtolnay/cxx
 
-#![doc(html_root_url = "https://docs.rs/cxx/0.2.8")]
+#![doc(html_root_url = "https://docs.rs/cxx/0.2.9")]
 #![deny(improper_ctypes)]
 #![allow(
     clippy::cognitive_complexity,
@@ -367,6 +367,7 @@ mod gen;
 mod opaque;
 mod paths;
 mod result;
+mod rust_sliceu8;
 mod rust_str;
 mod rust_string;
 mod rust_vec;
@@ -389,6 +390,7 @@ pub mod private {
     pub use crate::function::FatFunction;
     pub use crate::opaque::Opaque;
     pub use crate::result::{r#try, Result};
+    pub use crate::rust_sliceu8::RustSliceU8;
     pub use crate::rust_str::RustStr;
     pub use crate::rust_string::RustString;
     pub use crate::unique_ptr::UniquePtrTarget;
