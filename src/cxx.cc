@@ -241,7 +241,7 @@ STD_VECTOR_OPS(i8, int8_t);
 STD_VECTOR_OPS(i16, int16_t);
 STD_VECTOR_OPS(i32, int32_t);
 STD_VECTOR_OPS(i64, int64_t);
-STD_VECTOR_OPS(isize, ssize_t);
+STD_VECTOR_OPS(isize, rust::isize);
 STD_VECTOR_OPS(f32, float);
 STD_VECTOR_OPS(f64, double);
 
