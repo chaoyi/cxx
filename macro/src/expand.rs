@@ -1,10 +1,13 @@
-use crate::namespace::Namespace;
 use crate::syntax::atom::Atom::{self, *};
 use crate::syntax::mangled::ToMangled;
+use crate::syntax::namespace::Namespace;
+use crate::syntax::symbol::Symbol;
 use crate::syntax::typename::ToTypename;
-use crate::syntax::{self, check, Api, ExternFn, ExternType, Signature, Struct, Type, Types};
+use crate::syntax::{
+    self, check, mangle, Api, ExternFn, ExternType, Signature, Struct, Type, Types,
+};
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::{format_ident, quote, quote_spanned};
+use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{parse_quote, spanned::Spanned, Error, ItemMod, Result, Token};
 
 pub fn bridge(namespace: &Namespace, ffi: ItemMod) -> Result<TokenStream> {
@@ -181,13 +184,7 @@ fn expand_cxx_type(ety: &ExternType) -> TokenStream {
 
 fn expand_cxx_function_decl(namespace: &Namespace, efn: &ExternFn, types: &Types) -> TokenStream {
     let ident = &efn.ident;
-    let receiver = efn.receiver.iter().map(|base| {
-        let ident = &base.ident;
-        match base.mutability {
-            None => quote!(_: &#ident),
-            Some(_) => quote!(_: &mut #ident),
-        }
-    });
+    let receiver = efn.receiver.iter().map(|receiver| quote!(_: #receiver));
     let args = efn.args.iter().map(|arg| {
         let ident = &arg.ident;
         let ty = expand_extern_type(&arg.ty);
@@ -212,11 +209,7 @@ fn expand_cxx_function_decl(namespace: &Namespace, efn: &ExternFn, types: &Types
         let ret = expand_extern_type(efn.ret.as_ref().unwrap());
         outparam = Some(quote!(__return: *mut #ret));
     }
-    let receiver_type = match &efn.receiver {
-        Some(base) => base.ident.to_string(),
-        None => "_".to_string(),
-    };
-    let link_name = format!("{}cxxbridge02${}${}", namespace, receiver_type, ident);
+    let link_name = mangle::extern_fn(namespace, efn);
     let local_name = format_ident!("__{}", ident);
     quote! {
         #[link_name = #link_name]
@@ -228,9 +221,11 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
     let ident = &efn.ident;
     let doc = &efn.doc;
     let decl = expand_cxx_function_decl(namespace, efn, types);
-    let receiver = efn.receiver.iter().map(|base| match base.mutability {
-        None => quote!(&self),
-        Some(_) => quote!(&mut self),
+    let receiver = efn.receiver.iter().map(|receiver| {
+        let ampersand = receiver.ampersand;
+        let mutability = receiver.mutability;
+        let var = receiver.var;
+        quote!(#ampersand #mutability #var)
     });
     let args = efn.args.iter().map(|arg| quote!(#arg));
     let all_args = receiver.chain(args);
@@ -244,7 +239,10 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
         expand_return_type(&efn.ret)
     };
     let indirect_return = indirect_return(efn, types);
-    let receiver_var = efn.receiver.iter().map(|_| quote!(self));
+    let receiver_var = efn
+        .receiver
+        .iter()
+        .map(|receiver| receiver.var.to_token_stream());
     let arg_vars = efn.args.iter().map(|arg| {
         let var = &arg.ident;
         match &arg.ty {
@@ -353,36 +351,25 @@ fn expand_cxx_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types
         })
     }
     .unwrap_or(call);
-    let receiver_ident = efn.receiver.as_ref().map(|base| &base.ident);
-    match receiver_ident {
-        None => quote! {
-            #doc
-            pub fn #ident(#(#all_args,)*) #ret {
-                extern "C" {
-                    #decl
-                }
-                #trampolines
-                unsafe {
-                    #setup
-                    #expr
-                }
+    let function_shim = quote! {
+        #doc
+        pub fn #ident(#(#all_args,)*) #ret {
+            extern "C" {
+                #decl
             }
-        },
-        Some(base_ident) => quote! {
-            #doc
-            impl #base_ident {
-                pub fn #ident(#(#all_args,)*) #ret {
-                    extern "C" {
-                        #decl
-                    }
-                    #trampolines
-                    unsafe {
-                        #setup
-                        #expr
-                    }
-                }
+            #trampolines
+            unsafe {
+                #setup
+                #expr
             }
-        },
+        }
+    };
+    match &efn.receiver {
+        None => function_shim,
+        Some(receiver) => {
+            let receiver_type = &receiver.ty;
+            quote!(impl #receiver_type { #function_shim })
+        }
     }
 }
 
@@ -393,8 +380,8 @@ fn expand_function_pointer_trampoline(
     sig: &Signature,
     types: &Types,
 ) -> TokenStream {
-    let c_trampoline = format!("{}cxxbridge02${}${}$0", namespace, efn.ident, var);
-    let r_trampoline = format!("{}cxxbridge02${}${}$1", namespace, efn.ident, var);
+    let c_trampoline = mangle::c_trampoline(namespace, efn, var);
+    let r_trampoline = mangle::r_trampoline(namespace, efn, var);
     let local_name = parse_quote!(__);
     let catch_unwind_label = format!("::{}::{}", efn.ident, var);
     let shim = expand_rust_function_shim_impl(
@@ -430,11 +417,7 @@ fn expand_rust_type(ety: &ExternType) -> TokenStream {
 
 fn expand_rust_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Types) -> TokenStream {
     let ident = &efn.ident;
-    let receiver_type = match &efn.receiver {
-        Some(base) => base.ident.to_string(),
-        None => "_".to_string(),
-    };
-    let link_name = format!("{}cxxbridge02${}${}", namespace, receiver_type, ident);
+    let link_name = mangle::extern_fn(namespace, efn);
     let local_name = format_ident!("__{}", ident);
     let catch_unwind_label = format!("::{}", ident);
     let invoke = Some(ident);
@@ -451,18 +434,19 @@ fn expand_rust_function_shim(namespace: &Namespace, efn: &ExternFn, types: &Type
 fn expand_rust_function_shim_impl(
     sig: &Signature,
     types: &Types,
-    link_name: &str,
+    link_name: &Symbol,
     local_name: Ident,
     catch_unwind_label: String,
     invoke: Option<&Ident>,
 ) -> TokenStream {
-    let receiver = sig.receiver.iter().map(|base| {
-        let ident = &base.ident;
-        match base.mutability {
-            None => quote!(__receiver: &#ident),
-            Some(_) => quote!(__receiver: &mut #ident),
-        }
-    });
+    let receiver_var = sig
+        .receiver
+        .as_ref()
+        .map(|receiver| quote_spanned!(receiver.var.span=> __self));
+    let receiver = sig
+        .receiver
+        .as_ref()
+        .map(|receiver| quote!(#receiver_var: #receiver));
     let args = sig.args.iter().map(|arg| {
         let ident = &arg.ident;
         let ty = expand_extern_type(&arg.ty);
@@ -472,9 +456,9 @@ fn expand_rust_function_shim_impl(
             quote!(#ident: #ty)
         }
     });
-    let all_args = receiver.chain(args);
+    let all_args = receiver.into_iter().chain(args);
 
-    let vars = sig.args.iter().map(|arg| {
+    let arg_vars = sig.args.iter().map(|arg| {
         let ident = &arg.ident;
         match &arg.ty {
             Type::Ident(i) if i == RustString => {
@@ -492,11 +476,15 @@ fn expand_rust_function_shim_impl(
             _ => quote!(#ident),
         }
     });
+    let vars = receiver_var.into_iter().chain(arg_vars);
 
     let mut call = match invoke {
-        Some(ident) => match sig.receiver {
+        Some(ident) => match &sig.receiver {
             None => quote!(super::#ident),
-            Some(_) => quote!(__receiver.#ident),
+            Some(receiver) => {
+                let receiver_type = &receiver.ty;
+                quote!(#receiver_type::#ident)
+            }
         },
         None => quote!(__extern),
     };

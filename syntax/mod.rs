@@ -7,9 +7,12 @@ mod doc;
 pub mod error;
 pub mod ident;
 mod impls;
+pub mod mangle;
 pub mod mangled;
+pub mod namespace;
 mod parse;
 pub mod set;
+pub mod symbol;
 mod tokens;
 pub mod typename;
 pub mod types;
@@ -74,8 +77,10 @@ pub struct Var {
 }
 
 pub struct Receiver {
+    pub ampersand: Token![&],
     pub mutability: Option<Token![mut]>,
-    pub ident: Ident,
+    pub var: Token![self],
+    pub ty: Ident,
 }
 
 pub enum Type {

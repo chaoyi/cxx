@@ -1,10 +1,11 @@
-use crate::gen::namespace::Namespace;
 use crate::gen::out::OutFile;
 use crate::gen::{include, Opt};
 use crate::syntax::atom::Atom::{self, *};
 use crate::syntax::mangled::ToMangled;
+use crate::syntax::namespace::Namespace;
+use crate::syntax::symbol::Symbol;
 use crate::syntax::typename::ToTypename;
-use crate::syntax::{Api, ExternFn, ExternType, Receiver, Signature, Struct, Type, Types, Var};
+use crate::syntax::{mangle, Api, ExternFn, ExternType, Signature, Struct, Type, Types, Var};
 use proc_macro2::Ident;
 use std::collections::HashMap;
 
@@ -52,7 +53,7 @@ pub(super) fn gen(
         if let Api::RustFunction(efn) = api {
             if let Some(receiver) = &efn.sig.receiver {
                 methods_for_type
-                    .entry(&receiver.ident)
+                    .entry(&receiver.ty)
                     .or_insert_with(Vec::new)
                     .push(efn);
             }
@@ -336,7 +337,7 @@ fn write_struct_with_methods(out: &mut OutFile, ety: &ExternType, methods: &[&Ex
         write!(out, "  ");
         let sig = &method.sig;
         let local_name = method.ident.to_string();
-        write_rust_function_shim_decl(out, &local_name, sig, None, false);
+        write_rust_function_shim_decl(out, &local_name, sig, false);
         writeln!(out, ";");
     }
     writeln!(out, "}};");
@@ -368,17 +369,13 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     } else {
         write_extern_return_type_space(out, &efn.ret, types);
     }
-    let receiver_type = match &efn.receiver {
-        Some(base) => base.ident.to_string(),
-        None => "_".to_string(),
-    };
-    write!(
-        out,
-        "{}cxxbridge02${}${}(",
-        out.namespace, receiver_type, efn.ident
-    );
-    if let Some(base) = &efn.receiver {
-        write!(out, "{} *__receiver$", base.ident);
+    let mangled = mangle::extern_fn(&out.namespace, efn);
+    write!(out, "{}(", mangled);
+    if let Some(receiver) = &efn.receiver {
+        if receiver.mutability.is_none() {
+            write!(out, "const ");
+        }
+        write!(out, "{} &self", receiver.ty);
     }
     for (i, arg) in efn.args.iter().enumerate() {
         if i > 0 || efn.receiver.is_some() {
@@ -402,7 +399,7 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     write_return_type(out, &efn.ret);
     match &efn.receiver {
         None => write!(out, "(*{}$)(", efn.ident),
-        Some(base) => write!(out, "({}::*{}$)(", base.ident, efn.ident),
+        Some(receiver) => write!(out, "({}::*{}$)(", receiver.ty, efn.ident),
     }
     for (i, arg) in efn.args.iter().enumerate() {
         if i > 0 {
@@ -411,17 +408,15 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
         write_type(out, &arg.ty);
     }
     write!(out, ")");
-    match &efn.receiver {
-        Some(Receiver {
-            mutability: None,
-            ident: _,
-        }) => write!(out, " const"),
-        _ => {}
+    if let Some(receiver) = &efn.receiver {
+        if receiver.mutability.is_none() {
+            write!(out, " const");
+        }
     }
     write!(out, " = ");
     match &efn.receiver {
         None => write!(out, "{}", efn.ident),
-        Some(base) => write!(out, "&{}::{}", base.ident, efn.ident),
+        Some(receiver) => write!(out, "&{}::{}", receiver.ty, efn.ident),
     }
     writeln!(out, ";");
     write!(out, "  ");
@@ -448,7 +443,7 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     }
     match &efn.receiver {
         None => write!(out, "{}$(", efn.ident),
-        Some(_) => write!(out, "(__receiver$->*{}$)(", efn.ident),
+        Some(_) => write!(out, "(self.*{}$)(", efn.ident),
     }
     for (i, arg) in efn.args.iter().enumerate() {
         if i > 0 {
@@ -518,31 +513,24 @@ fn write_function_pointer_trampoline(
     types: &Types,
 ) {
     out.next_section();
-    let r_trampoline = format!("{}cxxbridge02${}${}$1", out.namespace, efn.ident, var);
+    let r_trampoline = mangle::r_trampoline(&out.namespace, efn, var);
     let indirect_call = true;
     write_rust_function_decl_impl(out, &r_trampoline, f, types, indirect_call);
 
     out.next_section();
-    let c_trampoline = format!("{}cxxbridge02${}${}$0", out.namespace, efn.ident, var);
+    let c_trampoline = mangle::c_trampoline(&out.namespace, efn, var).to_string();
     write_rust_function_shim_impl(out, &c_trampoline, f, types, &r_trampoline, indirect_call);
 }
 
 fn write_rust_function_decl(out: &mut OutFile, efn: &ExternFn, types: &Types) {
-    let receiver_type = match &efn.receiver {
-        Some(base) => base.ident.to_string(),
-        None => "_".to_string(),
-    };
-    let link_name = format!(
-        "{}cxxbridge02${}${}",
-        out.namespace, receiver_type, efn.ident
-    );
+    let link_name = mangle::extern_fn(&out.namespace, efn);
     let indirect_call = false;
     write_rust_function_decl_impl(out, &link_name, efn, types, indirect_call);
 }
 
 fn write_rust_function_decl_impl(
     out: &mut OutFile,
-    link_name: &str,
+    link_name: &Symbol,
     sig: &Signature,
     types: &Types,
     indirect_call: bool,
@@ -554,8 +542,11 @@ fn write_rust_function_decl_impl(
     }
     write!(out, "{}(", link_name);
     let mut needs_comma = false;
-    if let Some(base) = &sig.receiver {
-        write!(out, "{} &__receiver$", base.ident);
+    if let Some(receiver) = &sig.receiver {
+        if receiver.mutability.is_none() {
+            write!(out, "const ");
+        }
+        write!(out, "{} &self", receiver.ty);
         needs_comma = true;
     }
     for arg in &sig.args {
@@ -586,15 +577,11 @@ fn write_rust_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     for line in efn.doc.to_string().lines() {
         writeln!(out, "//{}", line);
     }
-    let local_name = efn.ident.to_string();
-    let receiver_type = match &efn.receiver {
-        Some(base) => base.ident.to_string(),
-        None => "_".to_string(),
+    let local_name = match &efn.sig.receiver {
+        None => efn.ident.to_string(),
+        Some(receiver) => format!("{}::{}", receiver.ty, efn.ident),
     };
-    let invoke = format!(
-        "{}cxxbridge02${}${}",
-        out.namespace, receiver_type, efn.ident
-    );
+    let invoke = mangle::extern_fn(&out.namespace, efn);
     let indirect_call = false;
     write_rust_function_shim_impl(out, &local_name, efn, types, &invoke, indirect_call);
 }
@@ -603,13 +590,9 @@ fn write_rust_function_shim_decl(
     out: &mut OutFile,
     local_name: &str,
     sig: &Signature,
-    receiver: Option<&Receiver>,
     indirect_call: bool,
 ) {
     write_return_type(out, &sig.ret);
-    if let Some(base) = receiver {
-        write!(out, "{}::", base.ident);
-    }
     write!(out, "{}(", local_name);
     for (i, arg) in sig.args.iter().enumerate() {
         if i > 0 {
@@ -625,6 +608,11 @@ fn write_rust_function_shim_decl(
         write!(out, "void *extern$");
     }
     write!(out, ")");
+    if let Some(receiver) = &sig.receiver {
+        if receiver.mutability.is_none() {
+            write!(out, " const");
+        }
+    }
     if !sig.throws {
         write!(out, " noexcept");
     }
@@ -635,104 +623,104 @@ fn write_rust_function_shim_impl(
     local_name: &str,
     sig: &Signature,
     types: &Types,
-    invoke: &str,
+    invoke: &Symbol,
     indirect_call: bool,
 ) {
     if out.header && sig.receiver.is_some() {
         // We've already defined this inside the struct.
         return;
     }
-    write_rust_function_shim_decl(out, local_name, sig, sig.receiver.as_ref(), indirect_call);
+    write_rust_function_shim_decl(out, local_name, sig, indirect_call);
     if out.header {
         writeln!(out, ";");
-    } else {
-        writeln!(out, " {{");
-        for arg in &sig.args {
-            if arg.ty != RustString && types.needs_indirect_abi(&arg.ty) {
-                out.include.utility = true;
-                write!(out, "  ::rust::ManuallyDrop<");
-                write_type(out, &arg.ty);
-                writeln!(out, "> {}$(::std::move({0}));", arg.ident);
-            }
-        }
-        write!(out, "  ");
-        let indirect_return = indirect_return(sig, types);
-        if indirect_return {
-            write!(out, "::rust::MaybeUninit<");
-            write_type(out, sig.ret.as_ref().unwrap());
-            writeln!(out, "> return$;");
-            write!(out, "  ");
-        } else if let Some(ret) = &sig.ret {
-            write!(out, "return ");
-            match ret {
-                Type::RustBox(_) => {
-                    write_type(out, ret);
-                    write!(out, "::from_raw(");
-                }
-                Type::UniquePtr(_) => {
-                    write_type(out, ret);
-                    write!(out, "(");
-                }
-                Type::Ref(_) => write!(out, "*"),
-                _ => {}
-            }
-        }
-        if sig.throws {
-            write!(out, "::rust::Str::Repr error$ = ");
-        }
-        write!(out, "{}(", invoke);
-        if let Some(_) = &sig.receiver {
-            write!(out, "*this");
-        }
-        for (i, arg) in sig.args.iter().enumerate() {
-            if i > 0 || sig.receiver.is_some() {
-                write!(out, ", ");
-            }
-            match &arg.ty {
-                Type::Str(_) => write!(out, "::rust::Str::Repr("),
-                Type::SliceRefU8(_) => write!(out, "::rust::Slice<uint8_t>::Repr("),
-                ty if types.needs_indirect_abi(ty) => write!(out, "&"),
-                _ => {}
-            }
-            write!(out, "{}", arg.ident);
-            match &arg.ty {
-                Type::RustBox(_) => write!(out, ".into_raw()"),
-                Type::UniquePtr(_) => write!(out, ".release()"),
-                Type::Str(_) | Type::SliceRefU8(_) => write!(out, ")"),
-                ty if ty != RustString && types.needs_indirect_abi(ty) => write!(out, "$.value"),
-                _ => {}
-            }
-        }
-        if indirect_return {
-            if !sig.args.is_empty() {
-                write!(out, ", ");
-            }
-            write!(out, "&return$.value");
-        }
-        if indirect_call {
-            if !sig.args.is_empty() || indirect_return {
-                write!(out, ", ");
-            }
-            write!(out, "extern$");
-        }
-        write!(out, ")");
-        if let Some(ret) = &sig.ret {
-            if let Type::RustBox(_) | Type::UniquePtr(_) = ret {
-                write!(out, ")");
-            }
-        }
-        writeln!(out, ";");
-        if sig.throws {
-            writeln!(out, "  if (error$.ptr) {{");
-            writeln!(out, "    throw ::rust::Error(error$);");
-            writeln!(out, "  }}");
-        }
-        if indirect_return {
-            out.include.utility = true;
-            writeln!(out, "  return ::std::move(return$.value);");
-        }
-        writeln!(out, "}}");
+        return;
     }
+    writeln!(out, " {{");
+    for arg in &sig.args {
+        if arg.ty != RustString && types.needs_indirect_abi(&arg.ty) {
+            out.include.utility = true;
+            write!(out, "  ::rust::ManuallyDrop<");
+            write_type(out, &arg.ty);
+            writeln!(out, "> {}$(::std::move({0}));", arg.ident);
+        }
+    }
+    write!(out, "  ");
+    let indirect_return = indirect_return(sig, types);
+    if indirect_return {
+        write!(out, "::rust::MaybeUninit<");
+        write_type(out, sig.ret.as_ref().unwrap());
+        writeln!(out, "> return$;");
+        write!(out, "  ");
+    } else if let Some(ret) = &sig.ret {
+        write!(out, "return ");
+        match ret {
+            Type::RustBox(_) => {
+                write_type(out, ret);
+                write!(out, "::from_raw(");
+            }
+            Type::UniquePtr(_) => {
+                write_type(out, ret);
+                write!(out, "(");
+            }
+            Type::Ref(_) => write!(out, "*"),
+            _ => {}
+        }
+    }
+    if sig.throws {
+        write!(out, "::rust::Str::Repr error$ = ");
+    }
+    write!(out, "{}(", invoke);
+    if sig.receiver.is_some() {
+        write!(out, "*this");
+    }
+    for (i, arg) in sig.args.iter().enumerate() {
+        if i > 0 || sig.receiver.is_some() {
+            write!(out, ", ");
+        }
+        match &arg.ty {
+            Type::Str(_) => write!(out, "::rust::Str::Repr("),
+            Type::SliceRefU8(_) => write!(out, "::rust::Slice<uint8_t>::Repr("),
+            ty if types.needs_indirect_abi(ty) => write!(out, "&"),
+            _ => {}
+        }
+        write!(out, "{}", arg.ident);
+        match &arg.ty {
+            Type::RustBox(_) => write!(out, ".into_raw()"),
+            Type::UniquePtr(_) => write!(out, ".release()"),
+            Type::Str(_) | Type::SliceRefU8(_) => write!(out, ")"),
+            ty if ty != RustString && types.needs_indirect_abi(ty) => write!(out, "$.value"),
+            _ => {}
+        }
+    }
+    if indirect_return {
+        if !sig.args.is_empty() {
+            write!(out, ", ");
+        }
+        write!(out, "&return$.value");
+    }
+    if indirect_call {
+        if !sig.args.is_empty() || indirect_return {
+            write!(out, ", ");
+        }
+        write!(out, "extern$");
+    }
+    write!(out, ")");
+    if let Some(ret) = &sig.ret {
+        if let Type::RustBox(_) | Type::UniquePtr(_) = ret {
+            write!(out, ")");
+        }
+    }
+    writeln!(out, ";");
+    if sig.throws {
+        writeln!(out, "  if (error$.ptr) {{");
+        writeln!(out, "    throw ::rust::Error(error$);");
+        writeln!(out, "  }}");
+    }
+    if indirect_return {
+        out.include.utility = true;
+        writeln!(out, "  return ::std::move(return$.value);");
+    }
+    writeln!(out, "}}");
 }
 
 fn write_return_type(out: &mut OutFile, ty: &Option<Type>) {

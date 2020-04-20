@@ -188,19 +188,31 @@ impl Eq for Receiver {}
 
 impl PartialEq for Receiver {
     fn eq(&self, other: &Receiver) -> bool {
-        let Receiver { mutability, ident } = self;
         let Receiver {
+            ampersand: _,
+            mutability,
+            var: _,
+            ty,
+        } = self;
+        let Receiver {
+            ampersand: _,
             mutability: mutability2,
-            ident: ident2,
+            var: _,
+            ty: ty2,
         } = other;
-        mutability.is_some() == mutability2.is_some() && ident == ident2
+        mutability.is_some() == mutability2.is_some() && ty == ty2
     }
 }
 
 impl Hash for Receiver {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let Receiver { mutability, ident } = self;
+        let Receiver {
+            ampersand: _,
+            mutability,
+            var: _,
+            ty,
+        } = self;
         mutability.is_some().hash(state);
-        ident.hash(state);
+        ty.hash(state);
     }
 }

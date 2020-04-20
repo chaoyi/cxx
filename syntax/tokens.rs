@@ -1,5 +1,5 @@
 use crate::syntax::atom::Atom::*;
-use crate::syntax::{Derive, ExternFn, Ref, Signature, Slice, Ty1, Type, Var};
+use crate::syntax::{Derive, ExternFn, Receiver, Ref, Signature, Slice, Ty1, Type, Var};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote_spanned, ToTokens};
 use syn::Token;
@@ -98,5 +98,13 @@ impl ToTokens for Signature {
                 ret.to_tokens(tokens);
             }
         }
+    }
+}
+
+impl ToTokens for Receiver {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.ampersand.to_tokens(tokens);
+        self.mutability.to_tokens(tokens);
+        self.ty.to_tokens(tokens);
     }
 }

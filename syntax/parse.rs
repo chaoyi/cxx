@@ -180,8 +180,10 @@ fn parse_extern_fn(foreign_fn: &ForeignItemFn, lang: Lang) -> Result<ExternFn> {
                 if let Type::Ref(reference) = ty {
                     if let Type::Ident(ident) = reference.inner {
                         receiver = Some(Receiver {
+                            ampersand: reference.ampersand,
                             mutability: reference.mutability,
-                            ident,
+                            var: Token![self](ident.span()),
+                            ty: ident,
                         });
                         continue;
                     }
