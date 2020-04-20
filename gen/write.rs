@@ -4,8 +4,9 @@ use crate::gen::{include, Opt};
 use crate::syntax::atom::Atom::{self, *};
 use crate::syntax::mangled::ToMangled;
 use crate::syntax::typename::ToTypename;
-use crate::syntax::{Api, ExternFn, Signature, Struct, Type, Types, Var};
+use crate::syntax::{Api, ExternFn, ExternType, Receiver, Signature, Struct, Type, Types, Var};
 use proc_macro2::Ident;
+use std::collections::HashMap;
 
 pub(super) fn gen(
     namespace: Namespace,
@@ -46,10 +47,31 @@ pub(super) fn gen(
         }
     }
 
+    let mut methods_for_type = HashMap::new();
     for api in apis {
-        if let Api::Struct(strct) = api {
-            out.next_section();
-            write_struct(out, strct);
+        if let Api::RustFunction(efn) = api {
+            if let Some(receiver) = &efn.sig.receiver {
+                methods_for_type
+                    .entry(&receiver.ident)
+                    .or_insert_with(Vec::new)
+                    .push(efn);
+            }
+        }
+    }
+
+    for api in apis {
+        match api {
+            Api::Struct(strct) => {
+                out.next_section();
+                write_struct(out, strct);
+            }
+            Api::RustType(ety) => {
+                if let Some(methods) = methods_for_type.get(&ety.ident) {
+                    out.next_section();
+                    write_struct_with_methods(out, ety, methods);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -310,6 +332,23 @@ fn write_struct_using(out: &mut OutFile, ident: &Ident) {
     writeln!(out, "using {} = {};", ident, ident);
 }
 
+fn write_struct_with_methods(out: &mut OutFile, ety: &ExternType, methods: &[&ExternFn]) {
+    for line in ety.doc.to_string().lines() {
+        writeln!(out, "//{}", line);
+    }
+    writeln!(out, "struct {} final {{", ety.ident);
+    writeln!(out, "  {}() = delete;", ety.ident);
+    writeln!(out, "  {}(const {} &) = delete;", ety.ident, ety.ident);
+    for method in methods {
+        write!(out, "  ");
+        let sig = &method.sig;
+        let local_name = method.ident.to_string();
+        write_rust_function_shim_decl(out, &local_name, sig, None, false);
+        writeln!(out, ";");
+    }
+    writeln!(out, "}};");
+}
+
 fn write_exception_glue(out: &mut OutFile, apis: &[Api]) {
     let mut has_cxx_throws = false;
     for api in apis {
@@ -336,9 +375,20 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     } else {
         write_extern_return_type_space(out, &efn.ret, types);
     }
-    write!(out, "{}cxxbridge02${}(", out.namespace, efn.ident);
+    let receiver_type = match &efn.receiver {
+        Some(base) => base.ident.to_string(),
+        None => "_".to_string(),
+    };
+    write!(
+        out,
+        "{}cxxbridge02${}${}(",
+        out.namespace, receiver_type, efn.ident
+    );
+    if let Some(base) = &efn.receiver {
+        write!(out, "{} *__receiver$", base.ident);
+    }
     for (i, arg) in efn.args.iter().enumerate() {
-        if i > 0 {
+        if i > 0 || efn.receiver.is_some() {
             write!(out, ", ");
         }
         if arg.ty == RustString {
@@ -357,14 +407,30 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
     writeln!(out, ") noexcept {{");
     write!(out, "  ");
     write_return_type(out, &efn.ret);
-    write!(out, "(*{}$)(", efn.ident);
+    match &efn.receiver {
+        None => write!(out, "(*{}$)(", efn.ident),
+        Some(base) => write!(out, "({}::*{}$)(", base.ident, efn.ident),
+    }
     for (i, arg) in efn.args.iter().enumerate() {
         if i > 0 {
             write!(out, ", ");
         }
         write_type(out, &arg.ty);
     }
-    writeln!(out, ") = {};", efn.ident);
+    write!(out, ")");
+    match &efn.receiver {
+        Some(Receiver {
+            mutability: None,
+            ident: _,
+        }) => write!(out, " const"),
+        _ => {}
+    }
+    write!(out, " = ");
+    match &efn.receiver {
+        None => write!(out, "{}", efn.ident),
+        Some(base) => write!(out, "&{}::{}", base.ident, efn.ident),
+    }
+    writeln!(out, ";");
     write!(out, "  ");
     if efn.throws {
         writeln!(out, "::rust::Str::Repr throw$;");
@@ -387,7 +453,10 @@ fn write_cxx_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
         }
         _ => {}
     }
-    write!(out, "{}$(", efn.ident);
+    match &efn.receiver {
+        None => write!(out, "{}$(", efn.ident),
+        Some(_) => write!(out, "(__receiver$->*{}$)(", efn.ident),
+    }
     for (i, arg) in efn.args.iter().enumerate() {
         if i > 0 {
             write!(out, ", ");
@@ -466,7 +535,14 @@ fn write_function_pointer_trampoline(
 }
 
 fn write_rust_function_decl(out: &mut OutFile, efn: &ExternFn, types: &Types) {
-    let link_name = format!("{}cxxbridge02${}", out.namespace, efn.ident);
+    let receiver_type = match &efn.receiver {
+        Some(base) => base.ident.to_string(),
+        None => "_".to_string(),
+    };
+    let link_name = format!(
+        "{}cxxbridge02${}${}",
+        out.namespace, receiver_type, efn.ident
+    );
     let indirect_call = false;
     write_rust_function_decl_impl(out, &link_name, efn, types, indirect_call);
 }
@@ -485,6 +561,10 @@ fn write_rust_function_decl_impl(
     }
     write!(out, "{}(", link_name);
     let mut needs_comma = false;
+    if let Some(base) = &sig.receiver {
+        write!(out, "{} &__receiver$", base.ident);
+        needs_comma = true;
+    }
     for arg in &sig.args {
         if needs_comma {
             write!(out, ", ");
@@ -514,20 +594,29 @@ fn write_rust_function_shim(out: &mut OutFile, efn: &ExternFn, types: &Types) {
         writeln!(out, "//{}", line);
     }
     let local_name = efn.ident.to_string();
-    let invoke = format!("{}cxxbridge02${}", out.namespace, efn.ident);
+    let receiver_type = match &efn.receiver {
+        Some(base) => base.ident.to_string(),
+        None => "_".to_string(),
+    };
+    let invoke = format!(
+        "{}cxxbridge02${}${}",
+        out.namespace, receiver_type, efn.ident
+    );
     let indirect_call = false;
     write_rust_function_shim_impl(out, &local_name, efn, types, &invoke, indirect_call);
 }
 
-fn write_rust_function_shim_impl(
+fn write_rust_function_shim_decl(
     out: &mut OutFile,
     local_name: &str,
     sig: &Signature,
-    types: &Types,
-    invoke: &str,
+    receiver: Option<&Receiver>,
     indirect_call: bool,
 ) {
     write_return_type(out, &sig.ret);
+    if let Some(base) = receiver {
+        write!(out, "{}::", base.ident);
+    }
     write!(out, "{}(", local_name);
     for (i, arg) in sig.args.iter().enumerate() {
         if i > 0 {
@@ -546,6 +635,21 @@ fn write_rust_function_shim_impl(
     if !sig.throws {
         write!(out, " noexcept");
     }
+}
+
+fn write_rust_function_shim_impl(
+    out: &mut OutFile,
+    local_name: &str,
+    sig: &Signature,
+    types: &Types,
+    invoke: &str,
+    indirect_call: bool,
+) {
+    if out.header && sig.receiver.is_some() {
+        // We've already defined this inside the struct.
+        return;
+    }
+    write_rust_function_shim_decl(out, local_name, sig, sig.receiver.as_ref(), indirect_call);
     if out.header {
         writeln!(out, ";");
     } else {
@@ -584,8 +688,11 @@ fn write_rust_function_shim_impl(
             write!(out, "::rust::Str::Repr error$ = ");
         }
         write!(out, "{}(", invoke);
+        if let Some(_) = &sig.receiver {
+            write!(out, "*this");
+        }
         for (i, arg) in sig.args.iter().enumerate() {
-            if i > 0 {
+            if i > 0 || sig.receiver.is_some() {
                 write!(out, ", ");
             }
             match &arg.ty {
