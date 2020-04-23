@@ -232,16 +232,16 @@ void cxxbridge02$unique_ptr$std$vector$##RUST_TYPE##$drop(::std::unique_ptr<std:
 } \
 } // extern "C"
 
-STD_VECTOR_OPS(u8, uint8_t);
-STD_VECTOR_OPS(u16, uint16_t);
-STD_VECTOR_OPS(u32, uint32_t);
-STD_VECTOR_OPS(u64, uint64_t);
-STD_VECTOR_OPS(usize, size_t);
-STD_VECTOR_OPS(i8, int8_t);
-STD_VECTOR_OPS(i16, int16_t);
-STD_VECTOR_OPS(i32, int32_t);
-STD_VECTOR_OPS(i64, int64_t);
-STD_VECTOR_OPS(isize, rust::isize);
-STD_VECTOR_OPS(f32, float);
-STD_VECTOR_OPS(f64, double);
+STD_VECTOR_OPS(u8, uint8_t)
+STD_VECTOR_OPS(u16, uint16_t)
+STD_VECTOR_OPS(u32, uint32_t)
+STD_VECTOR_OPS(u64, uint64_t)
+STD_VECTOR_OPS(usize, size_t)
+STD_VECTOR_OPS(i8, int8_t)
+STD_VECTOR_OPS(i16, int16_t)
+STD_VECTOR_OPS(i32, int32_t)
+STD_VECTOR_OPS(i64, int64_t)
+STD_VECTOR_OPS(isize, rust::isize)
+STD_VECTOR_OPS(f32, float)
+STD_VECTOR_OPS(f64, double)
 
