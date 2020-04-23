@@ -1,5 +1,7 @@
 use crate::syntax::atom::Atom::{self, *};
-use crate::syntax::{error, ident, Api, ExternFn, Lang, Ref, Slice, Struct, Ty1, Type, Types};
+use crate::syntax::{
+    error, ident, Api, ExternFn, ExternType, Lang, Receiver, Ref, Slice, Struct, Ty1, Type, Types,
+};
 use proc_macro2::{Delimiter, Group, Ident, TokenStream};
 use quote::{quote, ToTokens};
 use std::fmt::Display;
@@ -39,6 +41,7 @@ fn do_typecheck(cx: &mut Check) {
     for api in cx.apis {
         match api {
             Api::Struct(strct) => check_api_struct(cx, strct),
+            Api::CxxType(ty) | Api::RustType(ty) => check_api_type(cx, ty),
             Api::CxxFunction(efn) | Api::RustFunction(efn) => check_api_fn(cx, efn),
             _ => {}
         }
@@ -137,6 +140,10 @@ fn check_type_vector(cx: &mut Check, ptr: &Ty1) {
 }
 
 fn check_type_ref(cx: &mut Check, ty: &Ref) {
+    if ty.lifetime.is_some() {
+        cx.error(ty, "references with explicit lifetimes are not supported");
+    }
+
     match ty.inner {
         Type::Fn(_) | Type::Void(_) => {}
         _ => return,
@@ -150,6 +157,8 @@ fn check_type_slice(cx: &mut Check, ty: &Slice) {
 }
 
 fn check_api_struct(cx: &mut Check, strct: &Struct) {
+    check_reserved_name(cx, &strct.ident);
+
     if strct.fields.is_empty() {
         let span = span_for_struct_error(strct);
         cx.error(span, "structs without any fields are not supported");
@@ -170,7 +179,26 @@ fn check_api_struct(cx: &mut Check, strct: &Struct) {
     }
 }
 
+fn check_api_type(cx: &mut Check, ty: &ExternType) {
+    check_reserved_name(cx, &ty.ident);
+}
+
 fn check_api_fn(cx: &mut Check, efn: &ExternFn) {
+    if let Some(receiver) = &efn.receiver {
+        if !cx.types.structs.contains_key(&receiver.ty)
+            && !cx.types.cxx.contains(&receiver.ty)
+            && !cx.types.rust.contains(&receiver.ty)
+        {
+            let span = span_for_receiver_error(receiver);
+            cx.error(span, "unrecognized receiver type");
+        }
+
+        if receiver.lifetime.is_some() {
+            let span = span_for_receiver_error(receiver);
+            cx.error(span, "references with explicit lifetimes are not supported");
+        }
+    }
+
     for arg in &efn.args {
         if is_unsized(cx, &arg.ty) {
             let desc = describe(cx, &arg.ty);
@@ -244,6 +272,12 @@ fn check_multiple_arg_lifetimes(cx: &mut Check, efn: &ExternFn) {
     }
 }
 
+fn check_reserved_name(cx: &mut Check, ident: &Ident) {
+    if ident == "Box" || ident == "UniquePtr" || Atom::from(ident).is_some() {
+        cx.error(ident, "reserved name");
+    }
+}
+
 fn is_unsized(cx: &mut Check, ty: &Type) -> bool {
     let ident = match ty {
         Type::Ident(ident) => ident,
@@ -258,6 +292,19 @@ fn span_for_struct_error(strct: &Struct) -> TokenStream {
     let mut brace_token = Group::new(Delimiter::Brace, TokenStream::new());
     brace_token.set_span(strct.brace_token.span);
     quote!(#struct_token #brace_token)
+}
+
+fn span_for_receiver_error(receiver: &Receiver) -> TokenStream {
+    let ampersand = receiver.ampersand;
+    let lifetime = &receiver.lifetime;
+    let mutability = receiver.mutability;
+    if receiver.shorthand {
+        let var = receiver.var;
+        quote!(#ampersand #lifetime #mutability #var)
+    } else {
+        let ty = &receiver.ty;
+        quote!(#ampersand #lifetime #mutability #ty)
+    }
 }
 
 fn combine_errors(errors: Vec<Error>) -> Result<()> {
