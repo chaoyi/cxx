@@ -10,16 +10,12 @@
     clippy::toplevel_ref_arg
 )]
 
-mod error;
 mod gen;
-mod paths;
 mod syntax;
 
 use crate::gen::Opt;
-use std::path::Path;
+use proc_macro2::TokenStream;
 
-pub fn generate_header_and_cc(rust_source_file: &Path) -> (Vec<u8>, Vec<u8>) {
-    let header = gen::do_generate_header(rust_source_file, Opt::default());
-    let bridge = gen::do_generate_bridge(rust_source_file, Opt::default());
-    (header, bridge)
+pub fn generate_header_and_cc(rust_source: TokenStream) -> Result<(Vec<u8>, Vec<u8>),String> {
+    gen::do_generate_from_tokens(rust_source, Opt::default()).map_err(|e| format!("{}", e))
 }

@@ -14,7 +14,7 @@ use gen::include;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 struct Opt {
     input: Option<PathBuf>,
     header: bool,
