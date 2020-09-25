@@ -12,6 +12,7 @@ pub struct Types<'a> {
     pub enums: Map<&'a Ident, &'a Enum>,
     pub cxx: Set<&'a Ident>,
     pub rust: Set<&'a Ident>,
+    pub trivial_aliases: Set<&'a Ident>,
     pub aliases: Map<&'a Ident, &'a TypeAlias>,
     pub untrusted: Map<&'a Ident, &'a ExternType>,
 }
@@ -23,6 +24,7 @@ impl<'a> Types<'a> {
         let mut enums = Map::new();
         let mut cxx = Set::new();
         let mut rust = Set::new();
+        let mut trivial_aliases = Set::new();
         let mut aliases = Map::new();
         let mut untrusted = Map::new();
 
@@ -131,6 +133,9 @@ impl<'a> Types<'a> {
                     }
                     cxx.insert(ident);
                     aliases.insert(ident, alias);
+                },
+                Api::TrivialType(ident) => {
+                    trivial_aliases.insert(ident);
                 }
             }
         }
@@ -141,6 +146,7 @@ impl<'a> Types<'a> {
             enums,
             cxx,
             rust,
+            trivial_aliases,
             aliases,
             untrusted,
         }

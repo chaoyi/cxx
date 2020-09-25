@@ -12,7 +12,7 @@ use syn::parse::{ParseStream, Parser};
 use syn::punctuated::Punctuated;
 use syn::{
     Abi, Attribute, Error, Fields, FnArg, ForeignItem, ForeignItemFn, ForeignItemType,
-    GenericArgument, Ident, ItemEnum, ItemStruct, LitStr, Pat, PathArguments, Result, ReturnType,
+    GenericArgument, Ident, ItemEnum, ItemImpl, ItemStruct, LitStr, Pat, PathArguments, Result, ReturnType,
     Token, Type as RustType, TypeBareFn, TypePath, TypeReference, TypeSlice,
 };
 
@@ -33,6 +33,7 @@ pub fn parse_items(cx: &mut Errors, items: Vec<Item>, trusted: bool) -> Vec<Api>
                 Err(err) => cx.push(err),
             },
             Item::ForeignMod(foreign_mod) => parse_foreign_mod(cx, foreign_mod, &mut apis, trusted),
+            Item::Impl(impl_block) => parse_impl_block(cx, impl_block, &mut apis),
             Item::Use(item) => cx.error(item, error::USE_NOT_ALLOWED),
             Item::Other(item) => cx.error(item, "unsupported item"),
         }
@@ -168,6 +169,19 @@ fn parse_enum(cx: &mut Errors, item: ItemEnum) -> Result<Api> {
         variants,
         repr,
     }))
+}
+
+fn parse_impl_block(
+    cx: &mut Errors,
+    impl_block: ItemImpl,
+    out: &mut Vec<Api>
+) {
+    println!("Handling impl block");
+    // TODO parse; TODO handle errors
+    let ty = parse_type(&impl_block.self_ty).unwrap();
+    if let crate::syntax::Type::Ident(ident) = ty {
+        out.push(Api::TrivialType(ident));
+    }
 }
 
 fn parse_foreign_mod(

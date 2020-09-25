@@ -45,6 +45,9 @@ pub(crate) fn check_all(cx: &mut Check, namespace: &Namespace, apis: &[Api]) {
             Api::TypeAlias(alias) => {
                 check(cx, &alias.ident);
             }
+            Api::TrivialType(_) => {
+                // TODO - do something
+            }
         }
     }
 }

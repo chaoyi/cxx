@@ -338,6 +338,7 @@ fn is_unsized(cx: &mut Check, ty: &Type) -> bool {
         || cx.types.cxx.contains(ident)
             && !cx.types.structs.contains_key(ident)
             && !cx.types.enums.contains_key(ident)
+            && !cx.types.trivial_aliases.contains(ident)
         || cx.types.rust.contains(ident)
 }
 

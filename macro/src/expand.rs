@@ -39,7 +39,7 @@ fn expand(ffi: Module, apis: &[Api], types: &Types) -> TokenStream {
 
     for api in apis {
         match api {
-            Api::Include(_) | Api::RustType(_) => {}
+            Api::Include(_) | Api::RustType(_) | Api::TrivialType(_) => {}
             Api::Struct(strct) => expanded.extend(expand_struct(strct)),
             Api::Enum(enm) => expanded.extend(expand_enum(enm)),
             Api::CxxType(ety) => {
@@ -76,6 +76,8 @@ fn expand(ffi: Module, apis: &[Api], types: &Types) -> TokenStream {
             }
         } else if let Type::UniquePtr(ptr) = ty {
             if let Type::Ident(ident) = &ptr.inner {
+                // TODO the thing below needs changing based on TrivialType
+                // or other criteria by which unique ptrs may be OK
                 if Atom::from(ident).is_none() && !types.aliases.contains_key(ident) {
                     expanded.extend(expand_unique_ptr(namespace, ident, types));
                 }

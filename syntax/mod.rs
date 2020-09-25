@@ -42,6 +42,7 @@ pub enum Api {
     RustType(ExternType),
     RustFunction(ExternFn),
     TypeAlias(TypeAlias),
+    TrivialType(Ident),
 }
 
 pub struct ExternType {
