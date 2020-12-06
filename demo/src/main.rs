@@ -57,6 +57,6 @@ fn main() {
     // Read back the tags.
     let metadata = client.metadata(blobid);
     println!("tags = {:?}", metadata.tags);
-    let metadata2 = client.update(blobid);
+    let metadata2 = client.as_mut().unwrap().update(blobid);
     println!("tags = {:?}", metadata2.tags);
 }
