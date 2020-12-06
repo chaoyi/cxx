@@ -14,6 +14,7 @@ public:
   uint64_t put(MultiBuf &buf) const;
   void tag(uint64_t blobid, rust::Str tag) const;
   BlobMetadata metadata(uint64_t blobid) const;
+  BlobMetadata update(uint64_t blobid);
 
 private:
   class impl;

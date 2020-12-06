@@ -22,7 +22,8 @@ mod ffi {
         fn new_blobstore_client() -> UniquePtr<BlobstoreClient>;
         fn put(&self, parts: &mut MultiBuf) -> u64;
         fn tag(&self, blobid: u64, tag: &str);
-        fn metadata(&self, blobid: u64) -> BlobMetadata;
+        fn metadata(self: &BlobstoreClient, blobid: u64) -> BlobMetadata;
+        fn update(self: Pin<&mut BlobstoreClient>, blobid: u64) -> BlobMetadata;
     }
 }
 
@@ -42,7 +43,7 @@ pub fn next_chunk(buf: &mut MultiBuf) -> &[u8] {
 }
 
 fn main() {
-    let client = ffi::new_blobstore_client();
+    let mut client = ffi::new_blobstore_client();
 
     // Upload a blob.
     let chunks = vec![b"fearless".to_vec(), b"concurrency".to_vec()];
@@ -56,4 +57,6 @@ fn main() {
     // Read back the tags.
     let metadata = client.metadata(blobid);
     println!("tags = {:?}", metadata.tags);
+    let metadata2 = client.update(blobid);
+    println!("tags = {:?}", metadata2.tags);
 }
