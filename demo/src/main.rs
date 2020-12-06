@@ -1,5 +1,20 @@
+use cxx::{type_id, ExternType};
+
+unsafe impl ExternType for bindgen::BlobstoreClient {
+    type Id = type_id!("org::blobstore::BlobstoreClient");
+    type Kind = cxx::kind::Trivial;
+}
+
+mod bindgen {
+    #[repr(C)]
+    pub struct BlobstoreClient {
+        a: u32
+    }
+}
+
 #[cxx::bridge(namespace = "org::blobstore")]
 mod ffi {
+    impl UniquePtr<BlobstoreClient> {}
     // Shared structs with fields visible to both languages.
     struct BlobMetadata {
         size: usize,
@@ -17,13 +32,13 @@ mod ffi {
     unsafe extern "C++" {
         include!("demo/include/blobstore.h");
 
-        type BlobstoreClient;
+        type BlobstoreClient = super::bindgen::BlobstoreClient;
 
         fn new_blobstore_client() -> UniquePtr<BlobstoreClient>;
         fn put(&self, parts: &mut MultiBuf) -> u64;
         fn tag(&self, blobid: u64, tag: &str);
         fn metadata(self: &BlobstoreClient, blobid: u64) -> BlobMetadata;
-        fn update(self: Pin<&mut BlobstoreClient>, blobid: u64) -> BlobMetadata;
+        fn update(&mut self, blobid: u64) -> BlobMetadata;
     }
 }
 
