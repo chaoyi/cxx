@@ -72,3 +72,14 @@ pub mod ffi2 {
     impl UniquePtr<F> {}
     impl UniquePtr<G> {}
 }
+
+#[cfg(feature="cfged_tests")]
+struct DisabledThingy;
+
+#[cxx::bridge(namespace="cfged")]
+#[cfg(feature="cfged_tests")] // never enabled
+pub mod ffi3 {
+    extern "Rust" {
+        type DisabledThingy;
+    }
+}
