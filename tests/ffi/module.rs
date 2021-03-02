@@ -83,3 +83,14 @@ pub mod ffi3 {
         type DisabledThingy;
     }
 }
+
+#[cfg(feature="cfged_tests")]
+struct DisabledThingy2;
+
+#[cxx::bridge(namespace="cfged")]
+pub mod ffi4 {
+    extern "Rust" {
+        #[cfg(feature="cfged_tests")] // never enabled
+        type DisabledThingy2;
+    }
+}
