@@ -10,7 +10,19 @@ pub enum ImplKey<'a> {
     UniquePtr(NamedImplKey<'a>),
     SharedPtr(NamedImplKey<'a>),
     WeakPtr(NamedImplKey<'a>),
-    CxxVector(NamedImplKey<'a>),
+    CxxVector(CxxVectorPayloadImplKey<'a>),
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum PtrConstness {
+    Const,
+    Mut,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
+pub enum CxxVectorPayloadImplKey<'a> {
+    Named(NamedImplKey<'a>),
+    Ptr(NamedImplKey<'a>, PtrConstness),
 }
 
 #[derive(Copy, Clone)]
@@ -46,7 +58,22 @@ impl Type {
             }
         } else if let Type::CxxVector(ty) = self {
             if let Type::Ident(ident) = &ty.inner {
-                return Some(ImplKey::CxxVector(NamedImplKey::new(ty, ident)));
+                return Some(ImplKey::CxxVector(CxxVectorPayloadImplKey::Named(
+                    NamedImplKey::new(ty, ident),
+                )));
+            }
+            if let Type::Ptr(ptr) = &ty.inner {
+                if let Type::Ident(ident) = &ptr.inner {
+                    let constness = if ptr.constness.is_some() {
+                        PtrConstness::Const
+                    } else {
+                        PtrConstness::Mut
+                    };
+                    return Some(ImplKey::CxxVector(CxxVectorPayloadImplKey::Ptr(
+                        NamedImplKey::new(ty, ident),
+                        constness,
+                    )));
+                }
             }
         }
         None
