@@ -351,3 +351,17 @@ fn test_raw_ptr() {
     assert_eq!(2025, unsafe { ffi::c_take_const_ptr(c3) });
     assert_eq!(2025, unsafe { ffi::c_take_mut_ptr(c3 as *mut ffi::C) }); // deletes c3
 }
+
+#[test]
+fn test_unique_ptr_vector_raw_ptr() {
+    let c = ffi::c_return_unique_ptr_vector_mut_ptr(2024);
+    assert_eq!(4048, unsafe { ffi::c_take_unique_ptr_vector_const_ptr(c) });
+    assert_eq!(4048, unsafe { ffi::c_take_unique_ptr_vector_mut_ptr(c) }); // deletes elements
+
+    let c2 = ffi::c_return_unique_ptr_vector_const_ptr(2025);
+    assert_eq!(4050, unsafe { ffi::c_take_unique_ptr_vector_const_ptr(c2) });
+    for item in c2 {
+        unsafe { cxx::UniquePtr::from_raw(ffi::c_take_mut_ptr(item as *mut ffi::C)) }
+        // deletes each element
+    }
+}
