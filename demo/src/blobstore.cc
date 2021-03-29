@@ -66,6 +66,11 @@ BlobMetadata BlobstoreClient::metadata(uint64_t blobid) const {
 std::unique_ptr<BlobstoreClient> new_blobstore_client() {
   return std::make_unique<BlobstoreClient>();
 }
+std::unique_ptr<std::vector<const BlobstoreClient*>> foo(uint64_t n) {
+	auto v = std::make_unique<std::vector<const BlobstoreClient*>>();
+	v->push_back(new BlobstoreClient());
+	return v;
+}
 
 } // namespace blobstore
 } // namespace org

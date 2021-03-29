@@ -23,6 +23,7 @@ mod ffi {
         fn put(&self, parts: &mut MultiBuf) -> u64;
         fn tag(&self, blobid: u64, tag: &str);
         fn metadata(&self, blobid: u64) -> BlobMetadata;
+				fn foo(n: u64) -> UniquePtr<CxxVector<*const BlobstoreClient>>;
     }
 }
 

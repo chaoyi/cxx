@@ -21,6 +21,7 @@ private:
 };
 
 std::unique_ptr<BlobstoreClient> new_blobstore_client();
+std::unique_ptr<std::vector<const BlobstoreClient*>> foo(uint64_t n);
 
 } // namespace blobstore
 } // namespace org
