@@ -1,4 +1,4 @@
-use proc_macro2::TokenStream;
+use proc_macro::TokenStream;
 
 use crate::syntax::namespace::Namespace;
 use syn::parse::{Result, Parser};
