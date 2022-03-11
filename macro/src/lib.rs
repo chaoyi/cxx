@@ -30,6 +30,7 @@
 
 extern crate proc_macro;
 
+mod bridge_attrs;
 mod derive;
 mod expand;
 mod generics;
@@ -43,9 +44,9 @@ mod clang;
 mod load;
 
 use crate::syntax::file::Module;
-use crate::syntax::namespace::Namespace;
 use crate::syntax::qualified::QualifiedName;
 use crate::type_id::Crate;
+use bridge_attrs::parse_bridge_attrs;
 use proc_macro::TokenStream;
 use syn::parse::{Parse, ParseStream, Parser, Result};
 use syn::parse_macro_input;
@@ -71,8 +72,8 @@ use syn::parse_macro_input;
 pub fn bridge(args: TokenStream, input: TokenStream) -> TokenStream {
     let _ = syntax::error::ERRORS;
 
-    let namespace = match Namespace::parse_bridge_attr_namespace.parse(args) {
-        Ok(namespace) => namespace,
+    let (namespace, path_prefix) = match parse_bridge_attrs(args) {
+        Ok((namespace, path_prefix)) => (namespace, path_prefix),
         Err(err) => return err.to_compile_error().into(),
     };
     let mut ffi = parse_macro_input!(input as Module);
