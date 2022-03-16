@@ -17,12 +17,19 @@ Options:
           Compilation configuration matching what will be used to build
           the Rust side of the bridge.
 
-      --cxx-impl-annotations <annotation>
-          Optional annotation for implementations of C++ function wrappers
-          that may be exposed to Rust. You may for example need to provide
-          __declspec(dllexport) or __attribute__((visibility(\"default\")))
-          if Rust code from one shared object or executable depends on
-          these C++ functions in another.
+        --cxx-impl-annotations <annotation>
+            Optional annotation for implementations of C++ function wrappers
+            that may be exposed to Rust. You may for example need to provide
+            __declspec(dllexport) or __attribute__((visibility(\"default\")))
+            if Rust code from one shared object or executable depends on
+            these C++ functions in another.
+            
+            If you need to use this option, you might also consider similarly
+            defining either or both of the preprocessor symbols CXX_RS_EXPORT
+            and CXX_CPP_EXPORT when compiling cxx.cc. CXX_RS_EXPORT
+            attaches to symbols exported from cxx.cc which are typically used
+            by Rust code; CXX_CPP_EXPORT attaches to symbols which are used
+            by C++ code.
 
       --header
           Emit header with declarations only. Optional if using `-o` with
