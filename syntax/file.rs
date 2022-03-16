@@ -1,5 +1,7 @@
 use crate::syntax::cfg::CfgExpr;
 use crate::syntax::namespace::Namespace;
+use proc_macro::TokenStream;
+use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::parse::{Error, Parse, ParseStream, Result};
 use syn::{
@@ -17,6 +19,7 @@ pub struct Module {
     pub ident: Ident,
     pub brace_token: token::Brace,
     pub content: Vec<Item>,
+    pub path_prefix: Option<TokenStream>,
 }
 
 pub enum Item {
@@ -74,6 +77,7 @@ impl Parse for Module {
             ident,
             brace_token,
             content: items,
+            path_prefix: None, // only needed in Rust-side codegen.
         })
     }
 }
@@ -122,6 +126,15 @@ impl Parse for Item {
                 Ok(Item::Use(item))
             }
             other => Ok(Item::Other(other)),
+        }
+    }
+}
+
+impl Module {
+    pub(super) fn cxx_path(&self) -> TokenStream2 {
+        let cxx_prefix = self.path_prefix.as_ref().cloned().map(TokenStream2::from);
+        quote! {
+            #cxx_prefix :: cxx
         }
     }
 }

@@ -48,7 +48,7 @@ use crate::syntax::qualified::QualifiedName;
 use crate::type_id::Crate;
 use bridge_attrs::parse_bridge_attrs;
 use proc_macro::TokenStream;
-use syn::parse::{Parse, ParseStream, Parser, Result};
+use syn::parse::{Parse, ParseStream, Result};
 use syn::parse_macro_input;
 
 /// `#[cxx::bridge] mod ffi { ... }`
@@ -78,6 +78,7 @@ pub fn bridge(args: TokenStream, input: TokenStream) -> TokenStream {
     };
     let mut ffi = parse_macro_input!(input as Module);
     ffi.namespace = namespace;
+    ffi.path_prefix = path_prefix;
 
     expand::bridge(ffi)
         .unwrap_or_else(|err| err.to_compile_error())
