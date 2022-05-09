@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 #[cxx::bridge(namespace = "org::blobstore")]
 mod ffi {
     // Shared structs with fields visible to both languages.
@@ -23,6 +25,7 @@ mod ffi {
         fn put(&self, parts: &mut MultiBuf) -> u64;
         fn tag(&self, blobid: u64, tag: &str);
         fn metadata(&self, blobid: u64) -> BlobMetadata;
+        fn get_blob_metadata(self: Pin<&mut Self>) -> Pin<&mut BlobMetadata>;
     }
 }
 
@@ -42,7 +45,7 @@ pub fn next_chunk(buf: &mut MultiBuf) -> &[u8] {
 }
 
 fn main() {
-    let client = ffi::new_blobstore_client();
+    let mut client = ffi::new_blobstore_client();
 
     // Upload a blob.
     let chunks = vec![b"fearless".to_vec(), b"concurrency".to_vec()];
@@ -56,4 +59,15 @@ fn main() {
     // Read back the tags.
     let metadata = client.metadata(blobid);
     println!("tags = {:?}", metadata.tags);
+
+    let mut client2 = ffi::new_blobstore_client();
+    eprintln!("Sizeof {}", std::mem::size_of::<ffi::BlobMetadata>());
+    eprintln!("Sizeof client {}", std::mem::size_of::<ffi::BlobstoreClient>());
+    // UB....
+    let ref1 = client.pin_mut().get_blob_metadata();
+    let ref2 = client2.pin_mut().get_blob_metadata();
+    eprintln!("Addr1 {:#?}", ref1.deref() as *const _);
+    eprintln!("Addr2 {:#?}", ref2.deref() as *const _);
+    drop(ref1);
+    drop(ref2);
 }

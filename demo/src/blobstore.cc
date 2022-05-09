@@ -67,5 +67,12 @@ std::unique_ptr<BlobstoreClient> new_blobstore_client() {
   return std::make_unique<BlobstoreClient>();
 }
 
+
+  BlobMetadata fixed;
+
+BlobMetadata& BlobstoreClient::get_blob_metadata() {
+  return fixed;
+}
+
 } // namespace blobstore
 } // namespace org
