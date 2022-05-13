@@ -191,7 +191,6 @@ macro_rules! impl_extern_type {
         $($(
             $(#[$($attr)*])*
             unsafe impl ExternType for $ty {
-                #[doc(hidden)]
                 type Id = crate::type_id!($cxxpath);
                 type Kind = $kind;
             }
