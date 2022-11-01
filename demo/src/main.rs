@@ -11,6 +11,7 @@ mod ffi {
         type MultiBuf;
 
         fn next_chunk(buf: &mut MultiBuf) -> &[u8];
+        fn copy_buf(buf: &mut MultiBuf, src: &MultiBuf);
     }
 
     // C++ types and signatures exposed to Rust.
@@ -39,6 +40,8 @@ pub fn next_chunk(buf: &mut MultiBuf) -> &[u8] {
     let next = buf.chunks.get(buf.pos);
     buf.pos += 1;
     next.map_or(&[], Vec::as_slice)
+}
+pub fn copy_buf(buf: &mut MultiBuf, src: &MultiBuf)  {
 }
 
 fn main() {

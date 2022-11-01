@@ -34,6 +34,7 @@ uint64_t BlobstoreClient::put(MultiBuf &buf) const {
   // upload implemented by the blobstore's C++ client.
   while (true) {
     auto chunk = next_chunk(buf);
+    copy_buf(buf, buf);
     if (chunk.size() == 0) {
       break;
     }
