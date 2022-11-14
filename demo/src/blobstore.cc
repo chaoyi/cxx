@@ -5,6 +5,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <iostream>
 
 namespace org {
 namespace blobstore {
@@ -33,7 +34,11 @@ uint64_t BlobstoreClient::put(MultiBuf &buf) const {
   // In reality there might be sophisticated batching of chunks and/or parallel
   // upload implemented by the blobstore's C++ client.
   while (true) {
-    auto chunk = next_chunk(buf);
+    auto chunk = next_chunk(buf, [] {
+        std::cout << "hello" << std::endl;
+    }, [] (int a) {
+        std::cout << "hello2 " << a << std::endl;
+    });
     if (chunk.size() == 0) {
       break;
     }

@@ -2,8 +2,12 @@
 #include "rust/cxx.h"
 #include <memory>
 
+#define operatorINVOKE operator()
+
 namespace org {
 namespace blobstore {
+using MyFunction = std::function<void()>;
+using MyFunction2 = std::function<void(int)>;
 
 struct MultiBuf;
 struct BlobMetadata;

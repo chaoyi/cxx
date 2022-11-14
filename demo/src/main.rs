@@ -10,7 +10,7 @@ mod ffi {
     extern "Rust" {
         type MultiBuf;
 
-        fn next_chunk(buf: &mut MultiBuf) -> &[u8];
+        unsafe fn next_chunk<'a>(buf: &'a mut MultiBuf, func: &MyFunction, func2: &MyFunction2) -> &'a [u8];
     }
 
     // C++ types and signatures exposed to Rust.
@@ -18,11 +18,18 @@ mod ffi {
         include!("demo/include/blobstore.h");
 
         type BlobstoreClient;
+        type MyFunction;
+        type MyFunction2;
 
         fn new_blobstore_client() -> UniquePtr<BlobstoreClient>;
-        fn put(&self, parts: &mut MultiBuf) -> u64;
-        fn tag(&self, blobid: u64, tag: &str);
-        fn metadata(&self, blobid: u64) -> BlobMetadata;
+        fn put(self: &BlobstoreClient, parts: &mut MultiBuf) -> u64;
+        fn tag(self: &BlobstoreClient, blobid: u64, tag: &str);
+        fn metadata(self: &BlobstoreClient, blobid: u64) -> BlobMetadata;
+
+        #[cxx_name="operatorINVOKE"]
+        fn call(self: &MyFunction);
+        #[cxx_name="operatorINVOKE"]
+        fn call(self: &MyFunction2, param: i32);
     }
 }
 
@@ -35,9 +42,11 @@ pub struct MultiBuf {
     chunks: Vec<Vec<u8>>,
     pos: usize,
 }
-pub fn next_chunk(buf: &mut MultiBuf) -> &[u8] {
+pub fn next_chunk<'a>(buf: &'a mut MultiBuf, function: &ffi::MyFunction, fn2: &ffi::MyFunction2) -> &'a [u8] {
     let next = buf.chunks.get(buf.pos);
     buf.pos += 1;
+    function.call();
+    fn2.call(3);
     next.map_or(&[], Vec::as_slice)
 }
 
