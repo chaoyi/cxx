@@ -20,6 +20,21 @@
 #include <sys/types.h>
 #endif
 
+#ifndef CXX_EXPORT
+#ifdef _MSC_VER
+#define CXX_EXPORT __declspec(dllexport)
+#else
+#define CXX_EXPORT
+#endif
+#endif
+
+#ifndef CXX_RS_EXPORT
+#define CXX_RS_EXPORT CXX_EXPORT
+#endif
+#ifndef CXX_CPP_EXPORT
+#define CXX_CPP_EXPORT CXX_EXPORT
+#endif
+
 namespace rust {
 inline namespace cxxbridge1 {
 
@@ -35,66 +50,66 @@ class impl;
 // https://cxx.rs/binding/string.html
 class String final {
 public:
-  String() noexcept;
-  String(const String &) noexcept;
-  String(String &&) noexcept;
-  ~String() noexcept;
+  CXX_EXPORT String() noexcept;
+  CXX_EXPORT String(const String &) noexcept;
+  CXX_EXPORT String(String &&) noexcept;
+  CXX_EXPORT ~String() noexcept;
 
-  String(const std::string &);
-  String(const char *);
-  String(const char *, std::size_t);
-  String(const char16_t *);
-  String(const char16_t *, std::size_t);
+  CXX_EXPORT String(const std::string &);
+  CXX_EXPORT String(const char *);
+  CXX_EXPORT String(const char *, std::size_t);
+  CXX_EXPORT String(const char16_t *);
+  CXX_EXPORT String(const char16_t *, std::size_t);
 
   // Replace invalid Unicode data with the replacement character (U+FFFD).
-  static String lossy(const std::string &) noexcept;
-  static String lossy(const char *) noexcept;
-  static String lossy(const char *, std::size_t) noexcept;
-  static String lossy(const char16_t *) noexcept;
-  static String lossy(const char16_t *, std::size_t) noexcept;
+  static CXX_EXPORT String lossy(const std::string &) noexcept;
+  static CXX_EXPORT String lossy(const char *) noexcept;
+  static CXX_EXPORT String lossy(const char *, std::size_t) noexcept;
+  static CXX_EXPORT String lossy(const char16_t *) noexcept;
+  static CXX_EXPORT String lossy(const char16_t *, std::size_t) noexcept;
 
-  String &operator=(const String &) &noexcept;
-  String &operator=(String &&) &noexcept;
+  CXX_EXPORT String &operator=(const String &) &noexcept;
+  CXX_EXPORT String &operator=(String &&) &noexcept;
 
-  explicit operator std::string() const;
+  explicit CXX_EXPORT operator std::string() const;
 
   // Note: no null terminator.
-  const char *data() const noexcept;
-  std::size_t size() const noexcept;
-  std::size_t length() const noexcept;
-  bool empty() const noexcept;
+  CXX_EXPORT const char *data() const noexcept;
+  CXX_EXPORT std::size_t size() const noexcept;
+  CXX_EXPORT std::size_t length() const noexcept;
+  CXX_EXPORT bool empty() const noexcept;
 
-  const char *c_str() noexcept;
+  CXX_EXPORT const char *c_str() noexcept;
 
-  std::size_t capacity() const noexcept;
-  void reserve(size_t new_cap) noexcept;
+  CXX_EXPORT std::size_t capacity() const noexcept;
+  CXX_EXPORT void reserve(size_t new_cap) noexcept;
 
   using iterator = char *;
-  iterator begin() noexcept;
-  iterator end() noexcept;
+  CXX_EXPORT iterator begin() noexcept;
+  CXX_EXPORT iterator end() noexcept;
 
   using const_iterator = const char *;
-  const_iterator begin() const noexcept;
-  const_iterator end() const noexcept;
-  const_iterator cbegin() const noexcept;
-  const_iterator cend() const noexcept;
+  CXX_EXPORT const_iterator begin() const noexcept;
+  CXX_EXPORT const_iterator end() const noexcept;
+  CXX_EXPORT const_iterator cbegin() const noexcept;
+  CXX_EXPORT const_iterator cend() const noexcept;
 
-  bool operator==(const String &) const noexcept;
-  bool operator!=(const String &) const noexcept;
-  bool operator<(const String &) const noexcept;
-  bool operator<=(const String &) const noexcept;
-  bool operator>(const String &) const noexcept;
-  bool operator>=(const String &) const noexcept;
+  CXX_EXPORT bool operator==(const String &) const noexcept;
+  CXX_EXPORT bool operator!=(const String &) const noexcept;
+  CXX_EXPORT bool operator<(const String &) const noexcept;
+  CXX_EXPORT bool operator<=(const String &) const noexcept;
+  CXX_EXPORT bool operator>(const String &) const noexcept;
+  CXX_EXPORT bool operator>=(const String &) const noexcept;
 
-  void swap(String &) noexcept;
+  CXX_EXPORT void swap(String &) noexcept;
 
   // Internal API only intended for the cxxbridge code generator.
-  String(unsafe_bitcopy_t, const String &) noexcept;
+  CXX_EXPORT String(unsafe_bitcopy_t, const String &) noexcept;
 
 private:
   struct lossy_t;
-  String(lossy_t, const char *, std::size_t) noexcept;
-  String(lossy_t, const char16_t *, std::size_t) noexcept;
+  CXX_EXPORT String(lossy_t, const char *, std::size_t) noexcept;
+  CXX_EXPORT String(lossy_t, const char16_t *, std::size_t) noexcept;
   friend void swap(String &lhs, String &rhs) noexcept { lhs.swap(rhs); }
 
   // Size and alignment statically verified by rust_string.rs.
@@ -107,41 +122,41 @@ private:
 // https://cxx.rs/binding/str.html
 class Str final {
 public:
-  Str() noexcept;
-  Str(const String &) noexcept;
-  Str(const std::string &);
-  Str(const char *);
-  Str(const char *, std::size_t);
+  CXX_EXPORT Str() noexcept;
+  CXX_EXPORT Str(const String &) noexcept;
+  CXX_EXPORT Str(const std::string &);
+  CXX_EXPORT Str(const char *);
+  CXX_EXPORT Str(const char *, std::size_t);
 
-  Str &operator=(const Str &) &noexcept = default;
+  CXX_EXPORT Str &operator=(const Str &) &noexcept = default;
 
-  explicit operator std::string() const;
+  explicit CXX_EXPORT operator std::string() const;
 
   // Note: no null terminator.
-  const char *data() const noexcept;
-  std::size_t size() const noexcept;
-  std::size_t length() const noexcept;
-  bool empty() const noexcept;
+  CXX_EXPORT const char *data() const noexcept;
+  CXX_EXPORT std::size_t size() const noexcept;
+  CXX_EXPORT std::size_t length() const noexcept;
+  CXX_EXPORT bool empty() const noexcept;
 
   // Important in order for System V ABI to pass in registers.
-  Str(const Str &) noexcept = default;
-  ~Str() noexcept = default;
+  CXX_EXPORT Str(const Str &) noexcept = default;
+  CXX_EXPORT ~Str() noexcept = default;
 
   using iterator = const char *;
   using const_iterator = const char *;
-  const_iterator begin() const noexcept;
-  const_iterator end() const noexcept;
-  const_iterator cbegin() const noexcept;
-  const_iterator cend() const noexcept;
+  CXX_EXPORT const_iterator begin() const noexcept;
+  CXX_EXPORT const_iterator end() const noexcept;
+  CXX_EXPORT const_iterator cbegin() const noexcept;
+  CXX_EXPORT const_iterator cend() const noexcept;
 
-  bool operator==(const Str &) const noexcept;
-  bool operator!=(const Str &) const noexcept;
-  bool operator<(const Str &) const noexcept;
-  bool operator<=(const Str &) const noexcept;
-  bool operator>(const Str &) const noexcept;
-  bool operator>=(const Str &) const noexcept;
+  CXX_EXPORT bool operator==(const Str &) const noexcept;
+  CXX_EXPORT bool operator!=(const Str &) const noexcept;
+  CXX_EXPORT bool operator<(const Str &) const noexcept;
+  CXX_EXPORT bool operator<=(const Str &) const noexcept;
+  CXX_EXPORT bool operator>(const Str &) const noexcept;
+  CXX_EXPORT bool operator>=(const Str &) const noexcept;
 
-  void swap(Str &) noexcept;
+  CXX_EXPORT void swap(Str &) noexcept;
 
 private:
   class uninit;
@@ -412,8 +427,8 @@ using isize = ssize_t;
 #endif
 #endif // CXXBRIDGE1_RUST_ISIZE
 
-std::ostream &operator<<(std::ostream &, const String &);
-std::ostream &operator<<(std::ostream &, const Str &);
+CXX_EXPORT std::ostream &operator<<(std::ostream &, const String &);
+CXX_EXPORT std::ostream &operator<<(std::ostream &, const Str &);
 
 #ifndef CXXBRIDGE1_RUST_OPAQUE
 #define CXXBRIDGE1_RUST_OPAQUE

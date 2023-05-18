@@ -3,13 +3,6 @@
 #include <iostream>
 #include <memory>
 
-#ifndef CXX_RS_EXPORT
-#define CXX_RS_EXPORT
-#endif
-#ifndef CXX_CPP_EXPORT
-#define CXX_CPP_EXPORT
-#endif
-
 extern "C" {
 CXX_RS_EXPORT void cxxbridge1$cxx_string$init(std::string *s,
                                               const std::uint8_t *ptr,
@@ -328,7 +321,7 @@ CXX_CPP_EXPORT Str::Str(const String &s) noexcept {
   cxxbridge1$str$ref(this, &s);
 }
 
-CXX_CPP_EXPORT static void initStr(Str *self, const char *ptr,
+static void initStr(Str *self, const char *ptr,
                                    std::size_t len) {
   if (!cxxbridge1$str$from(self, ptr, len)) {
     panic<std::invalid_argument>("data for rust::Str is not utf-8");
@@ -715,35 +708,35 @@ static_assert(sizeof(std::string) <= kMaxExpectedWordsInString * sizeof(void *),
 
 #define RUST_VEC_OPS(RUST_TYPE, CXX_TYPE)                                      \
   template <>                                                                  \
-  Vec<CXX_TYPE>::Vec() noexcept {                                              \
+  CXX_RS_EXPORT Vec<CXX_TYPE>::Vec() noexcept {                                              \
     cxxbridge1$rust_vec$##RUST_TYPE##$new(this);                               \
   }                                                                            \
   template <>                                                                  \
-  void Vec<CXX_TYPE>::drop() noexcept {                                        \
+  CXX_RS_EXPORT void Vec<CXX_TYPE>::drop() noexcept {                                        \
     return cxxbridge1$rust_vec$##RUST_TYPE##$drop(this);                       \
   }                                                                            \
   template <>                                                                  \
-  std::size_t Vec<CXX_TYPE>::size() const noexcept {                           \
+  CXX_RS_EXPORT std::size_t Vec<CXX_TYPE>::size() const noexcept {                           \
     return cxxbridge1$rust_vec$##RUST_TYPE##$len(this);                        \
   }                                                                            \
   template <>                                                                  \
-  std::size_t Vec<CXX_TYPE>::capacity() const noexcept {                       \
+  CXX_RS_EXPORT std::size_t Vec<CXX_TYPE>::capacity() const noexcept {                       \
     return cxxbridge1$rust_vec$##RUST_TYPE##$capacity(this);                   \
   }                                                                            \
   template <>                                                                  \
-  const CXX_TYPE *Vec<CXX_TYPE>::data() const noexcept {                       \
+  CXX_RS_EXPORT const CXX_TYPE *Vec<CXX_TYPE>::data() const noexcept {                       \
     return cxxbridge1$rust_vec$##RUST_TYPE##$data(this);                       \
   }                                                                            \
   template <>                                                                  \
-  void Vec<CXX_TYPE>::reserve_total(std::size_t new_cap) noexcept {            \
+  CXX_RS_EXPORT void Vec<CXX_TYPE>::reserve_total(std::size_t new_cap) noexcept {            \
     cxxbridge1$rust_vec$##RUST_TYPE##$reserve_total(this, new_cap);            \
   }                                                                            \
   template <>                                                                  \
-  void Vec<CXX_TYPE>::set_len(std::size_t len) noexcept {                      \
+  CXX_RS_EXPORT void Vec<CXX_TYPE>::set_len(std::size_t len) noexcept {                      \
     cxxbridge1$rust_vec$##RUST_TYPE##$set_len(this, len);                      \
   }                                                                            \
   template <>                                                                  \
-  void Vec<CXX_TYPE>::truncate(std::size_t len) {                              \
+  CXX_RS_EXPORT void Vec<CXX_TYPE>::truncate(std::size_t len) {                              \
     cxxbridge1$rust_vec$##RUST_TYPE##$truncate(this, len);                     \
   }
 
